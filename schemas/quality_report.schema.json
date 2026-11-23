@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://digitaltrack.local/schemas/quality_report.schema.json",
+  "title": "Scan quality report",
+  "type": "object",
+  "required": ["schema_version", "session_id", "run_id", "algorithm_version", "generated_utc", "passed", "checks", "metrics"],
+  "properties": {
+    "schema_version": {"const": "0.1.0"},
+    "session_id": {"type": "string"},
+    "run_id": {"type": "string"},
+    "algorithm_version": {"type": "string"},
+    "generated_utc": {"type": "string"},
+    "passed": {"type": "boolean"},
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "status", "value", "threshold", "message"],
+        "properties": {
+          "name": {"type": "string"},
+          "status": {"enum": ["pass", "warn", "fail"]},
+          "value": {},
+          "threshold": {},
+          "message": {"type": "string"}
+        }
+      }
+    },
+    "metrics": {"type": "object"}
+  }
+}

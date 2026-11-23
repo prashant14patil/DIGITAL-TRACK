@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://digitaltrack.local/schemas/measurements.schema.json",
+  "title": "Measurements output",
+  "type": "object",
+  "required": ["schema_version", "session_id", "run_id", "definition_version", "algorithm_version", "measurements"],
+  "properties": {
+    "schema_version": {"const": "0.1.0"},
+    "session_id": {"type": "string"},
+    "run_id": {"type": "string"},
+    "definition_version": {"type": "string"},
+    "algorithm_version": {"type": "string"},
+    "measurements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "value", "unit", "source", "quality_status", "definition_version", "algorithm_version"],
+        "properties": {
+          "name": {"type": "string"},
+          "value": {"type": ["number", "null"]},
+          "unit": {"enum": ["m", "m2", "m3", "deg"]},
+          "source": {"enum": ["measured", "model_estimated", "unavailable"]},
+          "quality_status": {"enum": ["pass", "warn", "fail", "unavailable"]},
+          "definition_version": {"type": "string"},
+          "algorithm_version": {"type": "string"},
+          "notes": {"type": "string"},
+          "details": {"type": "object"}
+        }
+      }
+    },
+    "profile": {
+      "type": "object",
+      "properties": {
+        "heights_m": {"type": "array", "items": {"type": "number"}},
+        "circumference_m": {"type": "array", "items": {"type": ["number", "null"]}}
+      }
+    }
+  }
+}

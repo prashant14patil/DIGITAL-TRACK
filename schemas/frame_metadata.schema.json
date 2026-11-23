@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://digitaltrack.local/schemas/frame_metadata.schema.json",
+  "title": "Per-frame metadata (frame_metadata.json), dataset schema 0.2.0",
+  "type": "object",
+  "required": ["schema_version", "session_id", "frame_id", "timestamp_s", "angle_source"],
+  "anyOf": [{"required": ["rgb"]}, {"required": ["depth", "confidence"]}],
+  "dependentRequired": {"turntable_angle_deg": ["angle_source"], "confidence": ["depth"]},
+  "properties": {
+    "schema_version": {"const": "0.2.0"},
+    "session_id": {"type": "string"},
+    "frame_id": {"type": "integer", "minimum": 1},
+    "timestamp_s": {"type": "number", "description": "seconds; for video frames the presentation time in the source video"},
+    "turntable_angle_deg": {"type": "number", "description": "RECORDED angle (what the rig/markers reported), not ground truth; absent until determined"},
+    "angle_source": {"enum": ["manual", "marker", "encoder", "synthetic", "none"]},
+    "rgb": {
+      "type": "object",
+      "description": "Lossless colour image. PNG stores channels in RGB order.",
+      "required": ["file", "format", "width", "height", "channels", "bit_depth", "sha256"],
+      "properties": {
+        "file": {"type": "string"},
+        "format": {"const": "png"},
+        "width": {"type": "integer", "minimum": 1},
+        "height": {"type": "integer", "minimum": 1},
+        "channels": {"const": 3},
+        "bit_depth": {"enum": [8, 16]},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "video": {
+      "type": "object",
+      "description": "Where this frame came from in source_video.",
+      "required": ["source_frame_index", "pts_s"],
+      "properties": {
+        "source_frame_index": {"type": "integer", "minimum": 0, "description": "0-based index in decode order of displayed frames"},
+        "pts_s": {"type": "number"}
+      }
+    },
+    "depth": {
+      "type": "object",
+      "required": ["file", "dtype", "byte_order", "width", "height", "unit", "sha256"],
+      "properties": {
+        "file": {"type": "string"},
+        "dtype": {"const": "float32"},
+        "byte_order": {"const": "little"},
+        "width": {"type": "integer", "minimum": 1},
+        "height": {"type": "integer", "minimum": 1},
+        "unit": {"const": "meters"},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "confidence": {
+      "type": "object",
+      "required": ["file", "dtype", "width", "height", "sha256"],
+      "properties": {
+        "file": {"type": "string"},
+        "dtype": {"const": "uint8"},
+        "width": {"type": "integer", "minimum": 1},
+        "height": {"type": "integer", "minimum": 1},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "camera_transform": {
+      "type": "object",
+      "description": "Depth-device pose, if a device reported one. Never the turntable angle.",
+      "required": ["convention", "matrix"],
+      "properties": {
+        "convention": {"const": "world_from_camera"},
+        "matrix": {
+          "type": "array", "minItems": 4, "maxItems": 4,
+          "items": {"type": "array", "minItems": 4, "maxItems": 4, "items": {"type": "number"}}
+        }
+      }
+    },
+    "intrinsics_reference": {"type": "string"},
+    "depth_smoothed": {"type": "object", "description": "optional, stored separately; never replaces depth"}
+  }
+}

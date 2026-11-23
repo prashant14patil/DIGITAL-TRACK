@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://digitaltrack.local/schemas/turntable_calibration.schema.json",
+  "title": "Turntable calibration, dataset schema 0.2.0",
+  "type": "object",
+  "required": ["schema_version", "calibration_id", "method", "turntable_frame", "camera_from_turntable", "angle_direction_sign"],
+  "properties": {
+    "schema_version": {"const": "0.2.0"},
+    "calibration_id": {"type": "string", "minLength": 1},
+    "method": {"type": "string"},
+    "turntable_frame": {
+      "type": "string",
+      "description": "Origin = rotation centre on platform surface, +Z = rotation axis (up). The subject is fixed in this frame; at recorded angle A the subject is rotated by sign*A about +Z (right-handed)."
+    },
+    "camera_from_turntable": {
+      "type": "array", "minItems": 4, "maxItems": 4,
+      "description": "4x4 row-major transform: turntable-frame point -> camera-frame point at angle 0",
+      "items": {"type": "array", "minItems": 4, "maxItems": 4, "items": {"type": "number"}}
+    },
+    "angle_direction_sign": {"enum": [-1, 1]},
+    "uncertainty": {
+      "type": "object",
+      "properties": {
+        "axis_tilt_deg": {"type": "number"},
+        "center_m": {"type": "number"},
+        "angle_deg": {"type": "number"}
+      }
+    }
+  }
+}

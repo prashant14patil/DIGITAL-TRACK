@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://digitaltrack.local/schemas/v0.1.0/session.schema.json",
+  "title": "Scan session manifest (session.json)",
+  "type": "object",
+  "required": ["schema_version", "session_id", "created_utc", "synthetic", "device", "capture", "calibration_id", "frames"],
+  "additionalProperties": true,
+  "properties": {
+    "schema_version": {"const": "0.1.0"},
+    "session_id": {"type": "string", "minLength": 1},
+    "created_utc": {"type": "string", "minLength": 1},
+    "synthetic": {"type": "boolean", "description": "true for generated data; must never be mixed with real human scans"},
+    "device": {
+      "type": "object",
+      "required": ["model", "os_version", "app_version"],
+      "properties": {
+        "model": {"type": "string"},
+        "os_version": {"type": "string"},
+        "app_version": {"type": "string"}
+      }
+    },
+    "capture": {
+      "type": "object",
+      "required": ["camera_fixed", "subject_on_turntable", "depth_source", "depth_unit", "depth_dtype", "rotation_source", "rotation_axis_frame"],
+      "properties": {
+        "camera_fixed": {"type": "boolean"},
+        "subject_on_turntable": {"type": "boolean"},
+        "depth_source": {"type": "string"},
+        "depth_unit": {"const": "meters"},
+        "depth_dtype": {"const": "float32"},
+        "rotation_source": {"enum": ["manual", "marker", "encoder", "synthetic"]},
+        "rotation_axis_frame": {"type": "string"}
+      }
+    },
+    "calibration_id": {"type": "string", "minLength": 1},
+    "subject": {
+      "type": "object",
+      "properties": {
+        "subject_id": {"type": "string", "description": "pseudonymous identifier only"},
+        "clothing": {"type": "string"},
+        "posture_notes": {"type": "string"}
+      }
+    },
+    "rig": {
+      "type": "object",
+      "properties": {
+        "camera_distance_m": {"type": "number"},
+        "camera_height_m": {"type": "number"}
+      }
+    },
+    "frames": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["frame_id", "dir", "timestamp_s", "turntable_angle_deg", "depth_sha256", "confidence_sha256"],
+        "properties": {
+          "frame_id": {"type": "integer", "minimum": 1},
+          "dir": {"type": "string"},
+          "timestamp_s": {"type": "number"},
+          "turntable_angle_deg": {"type": "number"},
+          "depth_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "confidence_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        }
+      }
+    }
+  }
+}

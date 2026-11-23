@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://digitaltrack.local/schemas/v0.1.0/camera_calibration.schema.json",
+  "title": "Camera calibration (intrinsics for the DEPTH image resolution)",
+  "type": "object",
+  "required": ["schema_version", "calibration_id", "camera_frame", "pixel_convention", "image_width", "image_height", "intrinsics"],
+  "properties": {
+    "schema_version": {"const": "0.1.0"},
+    "calibration_id": {"type": "string", "minLength": 1},
+    "camera_frame": {"const": "opencv_x_right_y_down_z_forward"},
+    "pixel_convention": {"const": "index_center", "description": "ray = ((u-cx)/fx, (v-cy)/fy, 1) with integer pixel indices"},
+    "image_width": {"type": "integer", "minimum": 1, "description": "depth image width these intrinsics apply to"},
+    "image_height": {"type": "integer", "minimum": 1},
+    "intrinsics": {
+      "type": "object",
+      "required": ["fx", "fy", "cx", "cy"],
+      "properties": {
+        "fx": {"type": "number", "exclusiveMinimum": 0},
+        "fy": {"type": "number", "exclusiveMinimum": 0},
+        "cx": {"type": "number"},
+        "cy": {"type": "number"}
+      }
+    },
+    "distortion": {"type": "object"},
+    "method": {"type": "string"}
+  }
+}

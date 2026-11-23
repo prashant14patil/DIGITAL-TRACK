@@ -1,0 +1,38 @@
+{
+  "schema_version": "0.1.0",
+  "calibration_id": "fixture_v0_1_0_cylinder_cal",
+  "method": "synthetic_truth",
+  "turntable_frame": "origin=rotation centre on platform, +Z=rotation axis (up); subject rotated by sign*angle about +Z",
+  "camera_from_turntable": [
+    [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      -1.0,
+      0.3
+    ],
+    [
+      0.0,
+      1.0,
+      0.0,
+      1.2
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      1.0
+    ]
+  ],
+  "angle_direction_sign": 1,
+  "uncertainty": {
+    "axis_tilt_deg": 0.0,
+    "center_m": 0.0,
+    "angle_deg": 0.0
+  }
+}

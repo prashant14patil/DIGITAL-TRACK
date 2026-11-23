@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://digitaltrack.local/schemas/processing_log.schema.json",
+  "title": "Processing run log: every parameter and transform that can affect measurements",
+  "type": "object",
+  "required": ["schema_version", "run_id", "stage", "created_utc", "software", "input", "parameters", "transforms", "steps", "outputs"],
+  "properties": {
+    "schema_version": {"const": "0.1.0"},
+    "run_id": {"type": "string"},
+    "stage": {"type": "string"},
+    "created_utc": {"type": "string"},
+    "software": {"type": "object"},
+    "input": {
+      "type": "object",
+      "required": ["session_id", "calibration_id", "session_json_sha256"],
+      "properties": {
+        "session_id": {"type": "string"},
+        "calibration_id": {"type": "string"},
+        "session_json_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "parameters": {"type": "object"},
+    "transforms": {
+      "type": "object",
+      "required": ["camera_from_turntable", "angle_direction_sign", "per_frame"],
+      "properties": {
+        "camera_from_turntable": {"type": "array"},
+        "angle_direction_sign": {"enum": [-1, 1]},
+        "per_frame": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["frame_id", "recorded_angle_deg", "camera_from_body"],
+            "properties": {
+              "frame_id": {"type": "integer"},
+              "recorded_angle_deg": {"type": "number"},
+              "camera_from_body": {"type": "array"}
+            }
+          }
+        }
+      }
+    },
+    "steps": {"type": "array", "items": {"type": "object", "required": ["name"]}},
+    "outputs": {"type": "object"}
+  }
+}

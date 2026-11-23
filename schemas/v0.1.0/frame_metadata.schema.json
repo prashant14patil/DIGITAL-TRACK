@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://digitaltrack.local/schemas/v0.1.0/frame_metadata.schema.json",
+  "title": "Per-frame metadata (frame_metadata.json)",
+  "type": "object",
+  "required": ["schema_version", "session_id", "frame_id", "timestamp_s", "turntable_angle_deg", "angle_source", "depth", "confidence", "camera_transform", "intrinsics_reference"],
+  "properties": {
+    "schema_version": {"const": "0.1.0"},
+    "session_id": {"type": "string"},
+    "frame_id": {"type": "integer", "minimum": 1},
+    "timestamp_s": {"type": "number"},
+    "turntable_angle_deg": {"type": "number", "description": "RECORDED angle (what the rig reported), not ground truth"},
+    "angle_source": {"enum": ["manual", "marker", "encoder", "synthetic"]},
+    "depth": {
+      "type": "object",
+      "required": ["file", "dtype", "byte_order", "width", "height", "unit", "sha256"],
+      "properties": {
+        "file": {"type": "string"},
+        "dtype": {"const": "float32"},
+        "byte_order": {"const": "little"},
+        "width": {"type": "integer", "minimum": 1},
+        "height": {"type": "integer", "minimum": 1},
+        "unit": {"const": "meters"},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "confidence": {
+      "type": "object",
+      "required": ["file", "dtype", "width", "height", "sha256"],
+      "properties": {
+        "file": {"type": "string"},
+        "dtype": {"const": "uint8"},
+        "width": {"type": "integer", "minimum": 1},
+        "height": {"type": "integer", "minimum": 1},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "camera_transform": {
+      "type": "object",
+      "required": ["convention", "matrix"],
+      "properties": {
+        "convention": {"const": "world_from_camera"},
+        "matrix": {
+          "type": "array", "minItems": 4, "maxItems": 4,
+          "items": {"type": "array", "minItems": 4, "maxItems": 4, "items": {"type": "number"}}
+        }
+      }
+    },
+    "intrinsics_reference": {"type": "string"},
+    "rgb": {"type": "object"},
+    "depth_smoothed": {"type": "object", "description": "optional, stored separately; never replaces depth"}
+  }
+}

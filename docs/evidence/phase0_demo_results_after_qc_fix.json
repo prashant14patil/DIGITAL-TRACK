@@ -1,0 +1,2054 @@
+[
+  {
+    "scenario": "cylinder_clean",
+    "render_config": {
+      "n_views": 36,
+      "total_rotation_deg": 360.0,
+      "image_width": 192,
+      "image_height": 256,
+      "focal_px": 230.0,
+      "camera_distance_m": 1.2,
+      "camera_height_m": 0.3,
+      "camera_pitch_deg": 0.0,
+      "noise_sigma_m": 0.0,
+      "noise_sigma_rel": 0.0,
+      "dropout_prob": 0.0,
+      "angle_bias_deg": 0.0,
+      "angle_noise_deg": 0.0,
+      "calibration_axis_tilt_deg": 0.0,
+      "calibration_axis_tilt_azimuth_deg": 0.0,
+      "calibration_center_offset_m": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "march_step_m": 0.003,
+      "seed": 0
+    },
+    "tsdf_params": {
+      "voxel_length_m": 0.004,
+      "sdf_trunc_m": 0.02,
+      "depth_trunc_m": 3.0,
+      "depth_min_m": 0.1,
+      "min_confidence": 1,
+      "weight_threshold": 1.0,
+      "block_resolution": 16,
+      "block_count": 200000,
+      "min_cluster_fraction": 0.05,
+      "pointcloud_voxel_m": 0.004
+    },
+    "quality_passed": true,
+    "quality_checks": [
+      {
+        "name": "valid_frames",
+        "status": "pass",
+        "value": 36,
+        "threshold": 12,
+        "message": "frames with enough valid depth"
+      },
+      {
+        "name": "angular_gap",
+        "status": "pass",
+        "value": 10.0,
+        "threshold": {
+          "warn": 15.0,
+          "fail": 30.0
+        },
+        "message": "largest uncovered turntable arc between recorded angles"
+      },
+      {
+        "name": "valid_pixel_fraction",
+        "status": "pass",
+        "value": 0.15104166666666666,
+        "threshold": 0.02,
+        "message": "valid depth pixels / all pixels (the subject only fills part of the image)"
+      },
+      {
+        "name": "mesh_nonempty",
+        "status": "pass",
+        "value": 89552,
+        "threshold": 100,
+        "message": "reconstructed mesh has enough triangles"
+      },
+      {
+        "name": "single_component",
+        "status": "pass",
+        "value": 1,
+        "threshold": 1,
+        "message": "connected components remaining after conservative cleanup"
+      },
+      {
+        "name": "view_consistency_fitness",
+        "status": "pass",
+        "value": 1.0,
+        "threshold": 0.8,
+        "message": "median fraction of view points with a fused-surface correspondence; low = views do not overlap the fused surface (corrections below would be meaningless)"
+      },
+      {
+        "name": "view_consistency_translation",
+        "status": "pass",
+        "value": 0.0031108932045783647,
+        "threshold": {
+          "warn": 0.004,
+          "fail": 0.005
+        },
+        "message": "median rigid correction needed to align a view to the fused surface; large = turntable centre, direction-sign or angle errors. Blind to line-of-sight calibration errors."
+      },
+      {
+        "name": "view_consistency_tilt",
+        "status": "pass",
+        "value": 0.0010201077237455285,
+        "threshold": {
+          "warn": 0.08,
+          "fail": 0.15
+        },
+        "message": "median out-of-axis rotation correction per view; large = rotation-axis tilt error. Under-reads tilt toward/away from the camera."
+      }
+    ],
+    "sign_flipped": false,
+    "evaluation": {
+      "rows": [
+        {
+          "z_m": 0.09,
+          "true_circumference_m": 0.9424777960769379,
+          "measured_circumference_m": 0.9498330509635602,
+          "error_m": 0.007355254886622253,
+          "error_pct": 0.7804167819378333,
+          "slice_status": "pass"
+        },
+        {
+          "z_m": 0.18,
+          "true_circumference_m": 0.9424777960769379,
+          "measured_circumference_m": 0.9498330509635603,
+          "error_m": 0.007355254886622364,
+          "error_pct": 0.780416781937845,
+          "slice_status": "pass"
+        },
+        {
+          "z_m": 0.27,
+          "true_circumference_m": 0.9424777960769379,
+          "measured_circumference_m": 0.9498330509635602,
+          "error_m": 0.007355254886622253,
+          "error_pct": 0.7804167819378333,
+          "slice_status": "pass"
+        },
+        {
+          "z_m": 0.36,
+          "true_circumference_m": 0.9424777960769379,
+          "measured_circumference_m": 0.949833036551039,
+          "error_m": 0.007355240474101077,
+          "error_pct": 0.7804152527218414,
+          "slice_status": "pass"
+        },
+        {
+          "z_m": 0.44999999999999996,
+          "true_circumference_m": 0.9424777960769379,
+          "measured_circumference_m": 0.9498330509635602,
+          "error_m": 0.007355254886622253,
+          "error_pct": 0.7804167819378333,
+          "slice_status": "pass"
+        },
+        {
+          "z_m": 0.54,
+          "true_circumference_m": 0.9424777960769379,
+          "measured_circumference_m": 0.9498330287184306,
+          "error_m": 0.007355232641492626,
+          "error_pct": 0.7804144216562733,
+          "slice_status": "pass"
+        }
+      ],
+      "n_slices_failed": 0,
+      "circumference_mae_m": 0.007355248777013805,
+      "circumference_bias_m": 0.007355248777013805,
+      "circumference_max_abs_error_m": 0.007355254886622364,
+      "circumference_max_abs_error_pct": 0.780416781937845,
+      "true_height_m": 0.6,
+      "mesh_vertical_extent_m": 0.5960000157356262,
+      "height_error_m": -0.003999984264373757,
+      "mesh_z_min_m": 0.0,
+      "mesh_z_max_m": 0.5960000157356262
+    },
+    "run_dir": "data\\synthetic\\demo\\cylinder_clean\\processing\\tsdf_20261123T082803Z"
+  },
+  {
+    "scenario": "ellipse_clean",
+    "render_config": {
+      "n_views": 36,
+      "total_rotation_deg": 360.0,
+      "image_width": 192,
+      "image_height": 256,
+      "focal_px": 230.0,
+      "camera_distance_m": 1.2,
+      "camera_height_m": 0.3,
+      "camera_pitch_deg": 0.0,
+      "noise_sigma_m": 0.0,
+      "noise_sigma_rel": 0.0,
+      "dropout_prob": 0.0,
+      "angle_bias_deg": 0.0,
+      "angle_noise_deg": 0.0,
+      "calibration_axis_tilt_deg": 0.0,
+      "calibration_axis_tilt_azimuth_deg": 0.0,
+      "calibration_center_offset_m": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "march_step_m": 0.003,
+      "seed": 0
+    },
+    "tsdf_params": {
+      "voxel_length_m": 0.004,
+      "sdf_trunc_m": 0.02,
+      "depth_trunc_m": 3.0,
+      "depth_min_m": 0.1,
+      "min_confidence": 1,
+      "weight_threshold": 1.0,
+      "block_resolution": 16,
+      "block_count": 200000,
+      "min_cluster_fraction": 0.05,
+      "pointcloud_voxel_m": 0.004
+    },
+    "quality_passed": true,
+    "quality_checks": [
+      {
+        "name": "valid_frames",
+        "status": "pass",
+        "value": 36,
+        "threshold": 12,
+        "message": "frames with enough valid depth"
+      },
+      {
+        "name": "angular_gap",
+        "status": "pass",
+        "value": 10.0,
+        "threshold": {
+          "warn": 15.0,
+          "fail": 30.0
+        },
+        "message": "largest uncovered turntable arc between recorded angles"
+      },
+      {
+        "name": "valid_pixel_fraction",
+        "status": "pass",
+        "value": 0.1459282769097222,
+        "threshold": 0.02,
+        "message": "valid depth pixels / all pixels (the subject only fills part of the image)"
+      },
+      {
+        "name": "mesh_nonempty",
+        "status": "pass",
+        "value": 87215,
+        "threshold": 100,
+        "message": "reconstructed mesh has enough triangles"
+      },
+      {
+        "name": "single_component",
+        "status": "pass",
+        "value": 1,
+        "threshold": 1,
+        "message": "connected components remaining after conservative cleanup"
+      },
+      {
+        "name": "view_consistency_fitness",
+        "status": "pass",
+        "value": 1.0,
+        "threshold": 0.8,
+        "message": "median fraction of view points with a fused-surface correspondence; low = views do not overlap the fused surface (corrections below would be meaningless)"
+      },
+      {
+        "name": "view_consistency_translation",
+        "status": "pass",
+        "value": 0.0028171222073584664,
+        "threshold": {
+          "warn": 0.004,
+          "fail": 0.005
+        },
+        "message": "median rigid correction needed to align a view to the fused surface; large = turntable centre, direction-sign or angle errors. Blind to line-of-sight calibration errors."
+      },
+      {
+        "name": "view_consistency_tilt",
+        "status": "pass",
+        "value": 0.0008312574574378222,
+        "threshold": {
+          "warn": 0.08,
+          "fail": 0.15
+        },
+        "message": "median out-of-axis rotation correction per view; large = rotation-axis tilt error. Under-reads tilt toward/away from the camera."
+      }
+    ],
+    "sign_flipped": false,
+    "evaluation": {
+      "rows": [
+        {
+          "z_m": 0.09,
+          "true_circumference_m": 0.9243814351989379,
+          "measured_circumference_m": 0.93246830218236,
+          "error_m": 0.008086866983422092,
+          "error_pct": 0.8748409125808224,
+          "slice_status": "pass"
+        },
+        {
+          "z_m": 0.18,
+          "true_circumference_m": 0.9243814351989379,
+          "measured_circumference_m": 0.9324683106765572,
+          "error_m": 0.008086875477619326,
+          "error_pct": 0.874841831486905,
+          "slice_status": "pass"
+        },
+        {
+          "z_m": 0.27,
+          "true_circumference_m": 0.9243814351989379,
+          "measured_circumference_m": 0.9324683021823453,
+          "error_m": 0.008086866983407437,
+          "error_pct": 0.874840912579237,
+          "slice_status": "pass"
+        },
+        {
+          "z_m": 0.36,
+          "true_circumference_m": 0.9243814351989379,
+          "measured_circumference_m": 0.9324682895661053,
+          "error_m": 0.008086854367167384,
+          "error_pct": 0.8748395477487058,
+          "slice_status": "pass"
+        },
+        {
+          "z_m": 0.44999999999999996,
+          "true_circumference_m": 0.9243814351989379,
+          "measured_circumference_m": 0.932468302182315,
+          "error_m": 0.008086866983377128,
+          "error_pct": 0.8748409125759582,
+          "slice_status": "pass"
+        },
+        {
+          "z_m": 0.54,
+          "true_circumference_m": 0.9243814351989379,
+          "measured_circumference_m": 0.9324682787392299,
+          "error_m": 0.008086843540291988,
+          "error_pct": 0.874838376492449,
+          "slice_status": "pass"
+        }
+      ],
+      "n_slices_failed": 0,
+      "circumference_mae_m": 0.008086862389214225,
+      "circumference_bias_m": 0.008086862389214225,
+      "circumference_max_abs_error_m": 0.008086875477619326,
+      "circumference_max_abs_error_pct": 0.874841831486905,
+      "true_height_m": 0.6,
+      "mesh_vertical_extent_m": 0.5962295451317914,
+      "height_error_m": -0.0037704548682085948,
+      "mesh_z_min_m": -0.00022952939616516232,
+      "mesh_z_max_m": 0.5960000157356262
+    },
+    "run_dir": "data\\synthetic\\demo\\ellipse_clean\\processing\\tsdf_20261123T082809Z"
+  },
+  {
+    "scenario": "torso_clean",
+    "render_config": {
+      "n_views": 36,
+      "total_rotation_deg": 360.0,
+      "image_width": 192,
+      "image_height": 256,
+      "focal_px": 230.0,
+      "camera_distance_m": 1.2,
+      "camera_height_m": 0.3,
+      "camera_pitch_deg": 0.0,
+      "noise_sigma_m": 0.0,
+      "noise_sigma_rel": 0.0,
+      "dropout_prob": 0.0,
+      "angle_bias_deg": 0.0,
+      "angle_noise_deg": 0.0,
+      "calibration_axis_tilt_deg": 0.0,
+      "calibration_axis_tilt_azimuth_deg": 0.0,
+      "calibration_center_offset_m": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "march_step_m": 0.003,
+      "seed": 0
+    },
+    "tsdf_params": {
+      "voxel_length_m": 0.004,
+      "sdf_trunc_m": 0.02,
+      "depth_trunc_m": 3.0,
+      "depth_min_m": 0.1,
+      "min_confidence": 1,
+      "weight_threshold": 1.0,
+      "block_resolution": 16,
+      "block_count": 200000,
+      "min_cluster_fraction": 0.05,
+      "pointcloud_voxel_m": 0.004
+    },
+    "quality_passed": true,
+    "quality_checks": [
+      {
+        "name": "valid_frames",
+        "status": "pass",
+        "value": 36,
+        "threshold": 12,
+        "message": "frames with enough valid depth"
+      },
+      {
+        "name": "angular_gap",
+        "status": "pass",
+        "value": 10.0,
+        "threshold": {
+          "warn": 15.0,
+          "fail": 30.0
+        },
+        "message": "largest uncovered turntable arc between recorded angles"
+      },
+      {
+        "name": "valid_pixel_fraction",
+        "status": "pass",
+        "value": 0.13557490596064814,
+        "threshold": 0.02,
+        "message": "valid depth pixels / all pixels (the subject only fills part of the image)"
+      },
+      {
+        "name": "mesh_nonempty",
+        "status": "pass",
+        "value": 90162,
+        "threshold": 100,
+        "message": "reconstructed mesh has enough triangles"
+      },
+      {
+        "name": "single_component",
+        "status": "pass",
+        "value": 1,
+        "threshold": 1,
+        "message": "connected components remaining after conservative cleanup"
+      },
+      {
+        "name": "view_consistency_fitness",
+        "status": "pass",
+        "value": 1.0,
+        "threshold": 0.8,
+        "message": "median fraction of view points with a fused-surface correspondence; low = views do not overlap the fused surface (corrections below would be meaningless)"
+      },
+      {
+        "name": "view_consistency_translation",
+        "status": "pass",
+        "value": 0.0022718317832489806,
+        "threshold": {
+          "warn": 0.004,
+          "fail": 0.005
+        },
+        "message": "median rigid correction needed to align a view to the fused surface; large = turntable centre, direction-sign or angle errors. Blind to line-of-sight calibration errors."
+      },
+      {
+        "name": "view_consistency_tilt",
+        "status": "pass",
+        "value": 0.01831363829747183,
+        "threshold": {
+          "warn": 0.08,
+          "fail": 0.15
+        },
+        "message": "median out-of-axis rotation correction per view; large = rotation-axis tilt error. Under-reads tilt toward/away from the camera."
+      }
+    ],
+    "sign_flipped": false,
+    "evaluation": {
+      "rows": [
+        {
+          "z_m": 0.09,
+          "true_circumference_m": 0.9207068231118931,
+          "measured_circumference_m": 0.928867971673643,
+          "error_m": 0.008161148561749876,
+          "error_pct": 0.8864003564311649,
+          "slice_status": "pass"
+        },
+        {
+          "z_m": 0.18,
+          "true_circumference_m": 0.8318795994143193,
+          "measured_circumference_m": 0.8375852427782585,
+          "error_m": 0.005705643363939195,
+          "error_pct": 0.6858736971018672,
+          "slice_status": "pass"
+        },
+        {
+          "z_m": 0.27,
+          "true_circumference_m": 0.7625278563189338,
+          "measured_circumference_m": 0.7698595864098792,
+          "error_m": 0.007331730090945343,
+          "error_pct": 0.9615032461028917,
+          "slice_status": "pass"
+        },
+        {
+          "z_m": 0.36,
+          "true_circumference_m": 0.825772123027759,
+          "measured_circumference_m": 0.8352011222078648,
+          "error_m": 0.009428999180105757,
+          "error_pct": 1.1418403355072806,
+          "slice_status": "pass"
+        },
+        {
+          "z_m": 0.44999999999999996,
+          "true_circumference_m": 0.8976219139767616,
+          "measured_circumference_m": 0.908921398764992,
+          "error_m": 0.011299484788230396,
+          "error_pct": 1.2588245242554235,
+          "slice_status": "pass"
+        },
+        {
+          "z_m": 0.54,
+          "true_circumference_m": 0.9224465473847492,
+          "measured_circumference_m": 0.9292678023817167,
+          "error_m": 0.006821254996967507,
+          "error_pct": 0.7394742835025633,
+          "slice_status": "pass"
+        }
+      ],
+      "n_slices_failed": 0,
+      "circumference_mae_m": 0.008124710163656346,
+      "circumference_bias_m": 0.008124710163656346,
+      "circumference_max_abs_error_m": 0.011299484788230396,
+      "circumference_max_abs_error_pct": 1.2588245242554235,
+      "true_height_m": 0.6,
+      "mesh_vertical_extent_m": 0.5967583194142208,
+      "height_error_m": -0.0032416805857792275,
+      "mesh_z_min_m": -0.0007583036785945296,
+      "mesh_z_max_m": 0.5960000157356262
+    },
+    "run_dir": "data\\synthetic\\demo\\torso_clean\\processing\\tsdf_20261123T082817Z"
+  },
+  {
+    "scenario": "torso_noise3mm_dropout5pct",
+    "render_config": {
+      "n_views": 36,
+      "total_rotation_deg": 360.0,
+      "image_width": 192,
+      "image_height": 256,
+      "focal_px": 230.0,
+      "camera_distance_m": 1.2,
+      "camera_height_m": 0.3,
+      "camera_pitch_deg": 0.0,
+      "noise_sigma_m": 0.003,
+      "noise_sigma_rel": 0.0,
+      "dropout_prob": 0.05,
+      "angle_bias_deg": 0.0,
+      "angle_noise_deg": 0.0,
+      "calibration_axis_tilt_deg": 0.0,
+      "calibration_axis_tilt_azimuth_deg": 0.0,
+      "calibration_center_offset_m": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "march_step_m": 0.003,
+      "seed": 1
+    },
+    "tsdf_params": {
+      "voxel_length_m": 0.004,
+      "sdf_trunc_m": 0.02,
+      "depth_trunc_m": 3.0,
+      "depth_min_m": 0.1,
+      "min_confidence": 1,
+      "weight_threshold": 1.0,
+      "block_resolution": 16,
+      "block_count": 200000,
+      "min_cluster_fraction": 0.05,
+      "pointcloud_voxel_m": 0.004
+    },
+    "quality_passed": true,
+    "quality_checks": [
+      {
+        "name": "valid_frames",
+        "status": "pass",
+        "value": 36,
+        "threshold": 12,
+        "message": "frames with enough valid depth"
+      },
+      {
+        "name": "angular_gap",
+        "status": "pass",
+        "value": 10.0,
+        "threshold": {
+          "warn": 15.0,
+          "fail": 30.0
+        },
+        "message": "largest uncovered turntable arc between recorded angles"
+      },
+      {
+        "name": "valid_pixel_fraction",
+        "status": "pass",
+        "value": 0.12886499475549767,
+        "threshold": 0.02,
+        "message": "valid depth pixels / all pixels (the subject only fills part of the image)"
+      },
+      {
+        "name": "mesh_nonempty",
+        "status": "pass",
+        "value": 95535,
+        "threshold": 100,
+        "message": "reconstructed mesh has enough triangles"
+      },
+      {
+        "name": "single_component",
+        "status": "pass",
+        "value": 1,
+        "threshold": 1,
+        "message": "connected components remaining after conservative cleanup"
+      },
+      {
+        "name": "view_consistency_fitness",
+        "status": "pass",
+        "value": 1.0,
+        "threshold": 0.8,
+        "message": "median fraction of view points with a fused-surface correspondence; low = views do not overlap the fused surface (corrections below would be meaningless)"
+      },
+      {
+        "name": "view_consistency_translation",
+        "status": "pass",
+        "value": 0.0022876586765554915,
+        "threshold": {
+          "warn": 0.004,
+          "fail": 0.005
+        },
+        "message": "median rigid correction needed to align a view to the fused surface; large = turntable centre, direction-sign or angle errors. Blind to line-of-sight calibration errors."
+      },
+      {
+        "name": "view_consistency_tilt",
+        "status": "pass",
+        "value": 0.022972578371204935,
+        "threshold": {
+          "warn": 0.08,
+          "fail": 0.15
+        },
+        "message": "median out-of-axis rotation correction per view; large = rotation-axis tilt error. Under-reads tilt toward/away from the camera."
+      }
+    ],
+    "sign_flipped": false,
+    "evaluation": {
+      "rows": [
+        {
+          "z_m": 0.09,
+          "true_circumference_m": 0.9207068231118931,
+          "measured_circumference_m": 0.937090041717509,
+          "error_m": 0.016383218605615868,
+          "error_pct": 1.7794175294848251,
+          "slice_status": "pass"
+        },
+        {
+          "z_m": 0.18,
+          "true_circumference_m": 0.8318795994143193,
+          "measured_circumference_m": 0.84517552576242,
+          "error_m": 0.013295926348100728,
+          "error_pct": 1.5982993641702068,
+          "slice_status": "pass"
+        },
+        {
+          "z_m": 0.27,
+          "true_circumference_m": 0.7625278563189338,
+          "measured_circumference_m": 0.7748090334839937,
+          "error_m": 0.012281177165059831,
+          "error_pct": 1.6105873461917335,
+          "slice_status": "pass"
+        },
+        {
+          "z_m": 0.36,
+          "true_circumference_m": 0.825772123027759,
+          "measured_circumference_m": 0.8413564989563194,
+          "error_m": 0.015584375928560323,
+          "error_pct": 1.8872489751069548,
+          "slice_status": "pass"
+        },
+        {
+          "z_m": 0.44999999999999996,
+          "true_circumference_m": 0.8976219139767616,
+          "measured_circumference_m": 0.9148058463775617,
+          "error_m": 0.017183932400800073,
+          "error_pct": 1.9143842338551624,
+          "slice_status": "pass"
+        },
+        {
+          "z_m": 0.54,
+          "true_circumference_m": 0.9224465473847492,
+          "measured_circumference_m": 0.9354511756859423,
+          "error_m": 0.013004628301193089,
+          "error_pct": 1.4097974932057395,
+          "slice_status": "pass"
+        }
+      ],
+      "n_slices_failed": 0,
+      "circumference_mae_m": 0.014622209791554985,
+      "circumference_bias_m": 0.014622209791554985,
+      "circumference_max_abs_error_m": 0.017183932400800073,
+      "circumference_max_abs_error_pct": 1.9143842338551624,
+      "true_height_m": 0.6,
+      "mesh_vertical_extent_m": 0.5972738216514699,
+      "height_error_m": -0.0027261783485300617,
+      "mesh_z_min_m": -0.0006755540962330997,
+      "mesh_z_max_m": 0.5965982675552368
+    },
+    "run_dir": "data\\synthetic\\demo\\torso_noise3mm_dropout5pct\\processing\\tsdf_20261123T082825Z"
+  },
+  {
+    "scenario": "torso_angle_noise_1deg",
+    "render_config": {
+      "n_views": 36,
+      "total_rotation_deg": 360.0,
+      "image_width": 192,
+      "image_height": 256,
+      "focal_px": 230.0,
+      "camera_distance_m": 1.2,
+      "camera_height_m": 0.3,
+      "camera_pitch_deg": 0.0,
+      "noise_sigma_m": 0.0,
+      "noise_sigma_rel": 0.0,
+      "dropout_prob": 0.0,
+      "angle_bias_deg": 0.0,
+      "angle_noise_deg": 1.0,
+      "calibration_axis_tilt_deg": 0.0,
+      "calibration_axis_tilt_azimuth_deg": 0.0,
+      "calibration_center_offset_m": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "march_step_m": 0.003,
+      "seed": 2
+    },
+    "tsdf_params": {
+      "voxel_length_m": 0.004,
+      "sdf_trunc_m": 0.02,
+      "depth_trunc_m": 3.0,
+      "depth_min_m": 0.1,
+      "min_confidence": 1,
+      "weight_threshold": 1.0,
+      "block_resolution": 16,
+      "block_count": 200000,
+      "min_cluster_fraction": 0.05,
+      "pointcloud_voxel_m": 0.004
+    },
+    "quality_passed": true,
+    "quality_checks": [
+      {
+        "name": "valid_frames",
+        "status": "pass",
+        "value": 36,
+        "threshold": 12,
+        "message": "frames with enough valid depth"
+      },
+      {
+        "name": "angular_gap",
+        "status": "pass",
+        "value": 14.24117476536076,
+        "threshold": {
+          "warn": 15.0,
+          "fail": 30.0
+        },
+        "message": "largest uncovered turntable arc between recorded angles"
+      },
+      {
+        "name": "valid_pixel_fraction",
+        "status": "pass",
+        "value": 0.13557490596064814,
+        "threshold": 0.02,
+        "message": "valid depth pixels / all pixels (the subject only fills part of the image)"
+      },
+      {
+        "name": "mesh_nonempty",
+        "status": "pass",
+        "value": 90457,
+        "threshold": 100,
+        "message": "reconstructed mesh has enough triangles"
+      },
+      {
+        "name": "single_component",
+        "status": "pass",
+        "value": 1,
+        "threshold": 1,
+        "message": "connected components remaining after conservative cleanup"
+      },
+      {
+        "name": "view_consistency_fitness",
+        "status": "pass",
+        "value": 1.0,
+        "threshold": 0.8,
+        "message": "median fraction of view points with a fused-surface correspondence; low = views do not overlap the fused surface (corrections below would be meaningless)"
+      },
+      {
+        "name": "view_consistency_translation",
+        "status": "pass",
+        "value": 0.0023531654546078582,
+        "threshold": {
+          "warn": 0.004,
+          "fail": 0.005
+        },
+        "message": "median rigid correction needed to align a view to the fused surface; large = turntable centre, direction-sign or angle errors. Blind to line-of-sight calibration errors."
+      },
+      {
+        "name": "view_consistency_tilt",
+        "status": "pass",
+        "value": 0.02850039701386365,
+        "threshold": {
+          "warn": 0.08,
+          "fail": 0.15
+        },
+        "message": "median out-of-axis rotation correction per view; large = rotation-axis tilt error. Under-reads tilt toward/away from the camera."
+      }
+    ],
+    "sign_flipped": false,
+    "evaluation": {
+      "rows": [
+        {
+          "z_m": 0.09,
+          "true_circumference_m": 0.9207068231118931,
+          "measured_circumference_m": 0.9295420944912836,
+          "error_m": 0.008835271379390441,
+          "error_pct": 0.9596183234015954,
+          "slice_status": "pass"
+        },
+        {
+          "z_m": 0.18,
+          "true_circumference_m": 0.8318795994143193,
+          "measured_circumference_m": 0.8372481118244652,
+          "error_m": 0.005368512410145909,
+          "error_pct": 0.6453472851029864,
+          "slice_status": "pass"
+        },
+        {
+          "z_m": 0.27,
+          "true_circumference_m": 0.7625278563189338,
+          "measured_circumference_m": 0.7702134360760786,
+          "error_m": 0.007685579757144789,
+          "error_pct": 1.0079080644012866,
+          "slice_status": "pass"
+        },
+        {
+          "z_m": 0.36,
+          "true_circumference_m": 0.825772123027759,
+          "measured_circumference_m": 0.8352453366968418,
+          "error_m": 0.009473213669082714,
+          "error_pct": 1.147194656359726,
+          "slice_status": "pass"
+        },
+        {
+          "z_m": 0.44999999999999996,
+          "true_circumference_m": 0.8976219139767616,
+          "measured_circumference_m": 0.9089700246293195,
+          "error_m": 0.011348110652557919,
+          "error_pct": 1.2642417120012188,
+          "slice_status": "pass"
+        },
+        {
+          "z_m": 0.54,
+          "true_circumference_m": 0.9224465473847492,
+          "measured_circumference_m": 0.9313543725769572,
+          "error_m": 0.008907825192208008,
+          "error_pct": 0.965673861261967,
+          "slice_status": "pass"
+        }
+      ],
+      "n_slices_failed": 0,
+      "circumference_mae_m": 0.008603085510088296,
+      "circumference_bias_m": 0.008603085510088296,
+      "circumference_max_abs_error_m": 0.011348110652557919,
+      "circumference_max_abs_error_pct": 1.2642417120012188,
+      "true_height_m": 0.6,
+      "mesh_vertical_extent_m": 0.5962926125794183,
+      "height_error_m": -0.0037073874205816315,
+      "mesh_z_min_m": -0.0002925968437921256,
+      "mesh_z_max_m": 0.5960000157356262
+    },
+    "run_dir": "data\\synthetic\\demo\\torso_angle_noise_1deg\\processing\\tsdf_20261123T082833Z"
+  },
+  {
+    "scenario": "torso_angle_noise_3deg",
+    "render_config": {
+      "n_views": 36,
+      "total_rotation_deg": 360.0,
+      "image_width": 192,
+      "image_height": 256,
+      "focal_px": 230.0,
+      "camera_distance_m": 1.2,
+      "camera_height_m": 0.3,
+      "camera_pitch_deg": 0.0,
+      "noise_sigma_m": 0.0,
+      "noise_sigma_rel": 0.0,
+      "dropout_prob": 0.0,
+      "angle_bias_deg": 0.0,
+      "angle_noise_deg": 3.0,
+      "calibration_axis_tilt_deg": 0.0,
+      "calibration_axis_tilt_azimuth_deg": 0.0,
+      "calibration_center_offset_m": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "march_step_m": 0.003,
+      "seed": 2
+    },
+    "tsdf_params": {
+      "voxel_length_m": 0.004,
+      "sdf_trunc_m": 0.02,
+      "depth_trunc_m": 3.0,
+      "depth_min_m": 0.1,
+      "min_confidence": 1,
+      "weight_threshold": 1.0,
+      "block_resolution": 16,
+      "block_count": 200000,
+      "min_cluster_fraction": 0.05,
+      "pointcloud_voxel_m": 0.004
+    },
+    "quality_passed": true,
+    "quality_checks": [
+      {
+        "name": "valid_frames",
+        "status": "pass",
+        "value": 36,
+        "threshold": 12,
+        "message": "frames with enough valid depth"
+      },
+      {
+        "name": "angular_gap",
+        "status": "warn",
+        "value": 22.72352429608227,
+        "threshold": {
+          "warn": 15.0,
+          "fail": 30.0
+        },
+        "message": "largest uncovered turntable arc between recorded angles"
+      },
+      {
+        "name": "valid_pixel_fraction",
+        "status": "pass",
+        "value": 0.13557490596064814,
+        "threshold": 0.02,
+        "message": "valid depth pixels / all pixels (the subject only fills part of the image)"
+      },
+      {
+        "name": "mesh_nonempty",
+        "status": "pass",
+        "value": 91019,
+        "threshold": 100,
+        "message": "reconstructed mesh has enough triangles"
+      },
+      {
+        "name": "single_component",
+        "status": "pass",
+        "value": 1,
+        "threshold": 1,
+        "message": "connected components remaining after conservative cleanup"
+      },
+      {
+        "name": "view_consistency_fitness",
+        "status": "pass",
+        "value": 1.0,
+        "threshold": 0.8,
+        "message": "median fraction of view points with a fused-surface correspondence; low = views do not overlap the fused surface (corrections below would be meaningless)"
+      },
+      {
+        "name": "view_consistency_translation",
+        "status": "pass",
+        "value": 0.002734849467700521,
+        "threshold": {
+          "warn": 0.004,
+          "fail": 0.005
+        },
+        "message": "median rigid correction needed to align a view to the fused surface; large = turntable centre, direction-sign or angle errors. Blind to line-of-sight calibration errors."
+      },
+      {
+        "name": "view_consistency_tilt",
+        "status": "pass",
+        "value": 0.04417265151755332,
+        "threshold": {
+          "warn": 0.08,
+          "fail": 0.15
+        },
+        "message": "median out-of-axis rotation correction per view; large = rotation-axis tilt error. Under-reads tilt toward/away from the camera."
+      }
+    ],
+    "sign_flipped": false,
+    "evaluation": {
+      "rows": [
+        {
+          "z_m": 0.09,
+          "true_circumference_m": 0.9207068231118931,
+          "measured_circumference_m": 0.9297519610489289,
+          "error_m": 0.009045137937035763,
+          "error_pct": 0.9824123933896938,
+          "slice_status": "pass"
+        },
+        {
+          "z_m": 0.18,
+          "true_circumference_m": 0.8318795994143193,
+          "measured_circumference_m": 0.8386290717220869,
+          "error_m": 0.006749472307767568,
+          "error_pct": 0.8113520649526085,
+          "slice_status": "pass"
+        },
+        {
+          "z_m": 0.27,
+          "true_circumference_m": 0.7625278563189338,
+          "measured_circumference_m": 0.7700483256361076,
+          "error_m": 0.007520469317173761,
+          "error_pct": 0.9862550272561138,
+          "slice_status": "pass"
+        },
+        {
+          "z_m": 0.36,
+          "true_circumference_m": 0.825772123027759,
+          "measured_circumference_m": 0.8366779530898759,
+          "error_m": 0.010905830062116872,
+          "error_pct": 1.3206827595644401,
+          "slice_status": "pass"
+        },
+        {
+          "z_m": 0.44999999999999996,
+          "true_circumference_m": 0.8976219139767616,
+          "measured_circumference_m": 0.9114525583892588,
+          "error_m": 0.01383064441249715,
+          "error_pct": 1.540809576631527,
+          "slice_status": "pass"
+        },
+        {
+          "z_m": 0.54,
+          "true_circumference_m": 0.9224465473847492,
+          "measured_circumference_m": 0.9326304915724409,
+          "error_m": 0.010183944187691751,
+          "error_pct": 1.1040145596039685,
+          "slice_status": "pass"
+        }
+      ],
+      "n_slices_failed": 0,
+      "circumference_mae_m": 0.00970591637071381,
+      "circumference_bias_m": 0.00970591637071381,
+      "circumference_max_abs_error_m": 0.01383064441249715,
+      "circumference_max_abs_error_pct": 1.540809576631527,
+      "true_height_m": 0.6,
+      "mesh_vertical_extent_m": 0.5960000157356262,
+      "height_error_m": -0.003999984264373757,
+      "mesh_z_min_m": 0.0,
+      "mesh_z_max_m": 0.5960000157356262
+    },
+    "run_dir": "data\\synthetic\\demo\\torso_angle_noise_3deg\\processing\\tsdf_20261123T082842Z"
+  },
+  {
+    "scenario": "torso_calib_center_err_1cm",
+    "render_config": {
+      "n_views": 36,
+      "total_rotation_deg": 360.0,
+      "image_width": 192,
+      "image_height": 256,
+      "focal_px": 230.0,
+      "camera_distance_m": 1.2,
+      "camera_height_m": 0.3,
+      "camera_pitch_deg": 0.0,
+      "noise_sigma_m": 0.0,
+      "noise_sigma_rel": 0.0,
+      "dropout_prob": 0.0,
+      "angle_bias_deg": 0.0,
+      "angle_noise_deg": 0.0,
+      "calibration_axis_tilt_deg": 0.0,
+      "calibration_axis_tilt_azimuth_deg": 0.0,
+      "calibration_center_offset_m": [
+        0.01,
+        0.0,
+        0.0
+      ],
+      "march_step_m": 0.003,
+      "seed": 0
+    },
+    "tsdf_params": {
+      "voxel_length_m": 0.004,
+      "sdf_trunc_m": 0.02,
+      "depth_trunc_m": 3.0,
+      "depth_min_m": 0.1,
+      "min_confidence": 1,
+      "weight_threshold": 1.0,
+      "block_resolution": 16,
+      "block_count": 200000,
+      "min_cluster_fraction": 0.05,
+      "pointcloud_voxel_m": 0.004
+    },
+    "quality_passed": false,
+    "quality_checks": [
+      {
+        "name": "valid_frames",
+        "status": "pass",
+        "value": 36,
+        "threshold": 12,
+        "message": "frames with enough valid depth"
+      },
+      {
+        "name": "angular_gap",
+        "status": "pass",
+        "value": 10.0,
+        "threshold": {
+          "warn": 15.0,
+          "fail": 30.0
+        },
+        "message": "largest uncovered turntable arc between recorded angles"
+      },
+      {
+        "name": "valid_pixel_fraction",
+        "status": "pass",
+        "value": 0.13557490596064814,
+        "threshold": 0.02,
+        "message": "valid depth pixels / all pixels (the subject only fills part of the image)"
+      },
+      {
+        "name": "mesh_nonempty",
+        "status": "pass",
+        "value": 98881,
+        "threshold": 100,
+        "message": "reconstructed mesh has enough triangles"
+      },
+      {
+        "name": "single_component",
+        "status": "pass",
+        "value": 1,
+        "threshold": 1,
+        "message": "connected components remaining after conservative cleanup"
+      },
+      {
+        "name": "view_consistency_fitness",
+        "status": "pass",
+        "value": 1.0,
+        "threshold": 0.8,
+        "message": "median fraction of view points with a fused-surface correspondence; low = views do not overlap the fused surface (corrections below would be meaningless)"
+      },
+      {
+        "name": "view_consistency_translation",
+        "status": "fail",
+        "value": 0.010142497625529087,
+        "threshold": {
+          "warn": 0.004,
+          "fail": 0.005
+        },
+        "message": "median rigid correction needed to align a view to the fused surface; large = turntable centre, direction-sign or angle errors. Blind to line-of-sight calibration errors."
+      },
+      {
+        "name": "view_consistency_tilt",
+        "status": "pass",
+        "value": 0.05899040208233292,
+        "threshold": {
+          "warn": 0.08,
+          "fail": 0.15
+        },
+        "message": "median out-of-axis rotation correction per view; large = rotation-axis tilt error. Under-reads tilt toward/away from the camera."
+      }
+    ],
+    "sign_flipped": false,
+    "evaluation": {
+      "rows": [
+        {
+          "z_m": 0.09,
+          "true_circumference_m": 0.9207068231118931,
+          "measured_circumference_m": 0.9567936939072208,
+          "error_m": 0.036086870795327686,
+          "error_pct": 3.919474678525551,
+          "slice_status": "pass"
+        },
+        {
+          "z_m": 0.18,
+          "true_circumference_m": 0.8318795994143193,
+          "measured_circumference_m": 0.8584901688357802,
+          "error_m": 0.026610569421460895,
+          "error_pct": 3.1988486603344923,
+          "slice_status": "pass"
+        },
+        {
+          "z_m": 0.27,
+          "true_circumference_m": 0.7625278563189338,
+          "measured_circumference_m": 0.7941796429342957,
+          "error_m": 0.03165178661536183,
+          "error_pct": 4.150902337936779,
+          "slice_status": "pass"
+        },
+        {
+          "z_m": 0.36,
+          "true_circumference_m": 0.825772123027759,
+          "measured_circumference_m": 0.8604242965227433,
+          "error_m": 0.034652173494984284,
+          "error_pct": 4.196336074888232,
+          "slice_status": "warn"
+        },
+        {
+          "z_m": 0.44999999999999996,
+          "true_circumference_m": 0.8976219139767616,
+          "measured_circumference_m": 0.933238625524351,
+          "error_m": 0.035616711547589386,
+          "error_pct": 3.9678968386361677,
+          "slice_status": "pass"
+        },
+        {
+          "z_m": 0.54,
+          "true_circumference_m": 0.9224465473847492,
+          "measured_circumference_m": 0.9668720441786967,
+          "error_m": 0.04442549679394747,
+          "error_pct": 4.81605106766341,
+          "slice_status": "pass"
+        }
+      ],
+      "n_slices_failed": 0,
+      "circumference_mae_m": 0.034840601444778595,
+      "circumference_bias_m": 0.034840601444778595,
+      "circumference_max_abs_error_m": 0.04442549679394747,
+      "circumference_max_abs_error_pct": 4.81605106766341,
+      "true_height_m": 0.6,
+      "mesh_vertical_extent_m": 0.5964725258527324,
+      "height_error_m": -0.0035274741472676174,
+      "mesh_z_min_m": -0.00047251011710613966,
+      "mesh_z_max_m": 0.5960000157356262
+    },
+    "run_dir": "data\\synthetic\\demo\\torso_calib_center_err_1cm\\processing\\tsdf_20261123T082851Z"
+  },
+  {
+    "scenario": "torso_calib_axis_tilt_1deg",
+    "render_config": {
+      "n_views": 36,
+      "total_rotation_deg": 360.0,
+      "image_width": 192,
+      "image_height": 256,
+      "focal_px": 230.0,
+      "camera_distance_m": 1.2,
+      "camera_height_m": 0.3,
+      "camera_pitch_deg": 0.0,
+      "noise_sigma_m": 0.0,
+      "noise_sigma_rel": 0.0,
+      "dropout_prob": 0.0,
+      "angle_bias_deg": 0.0,
+      "angle_noise_deg": 0.0,
+      "calibration_axis_tilt_deg": 1.0,
+      "calibration_axis_tilt_azimuth_deg": 0.0,
+      "calibration_center_offset_m": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "march_step_m": 0.003,
+      "seed": 0
+    },
+    "tsdf_params": {
+      "voxel_length_m": 0.004,
+      "sdf_trunc_m": 0.02,
+      "depth_trunc_m": 3.0,
+      "depth_min_m": 0.1,
+      "min_confidence": 1,
+      "weight_threshold": 1.0,
+      "block_resolution": 16,
+      "block_count": 200000,
+      "min_cluster_fraction": 0.05,
+      "pointcloud_voxel_m": 0.004
+    },
+    "quality_passed": false,
+    "quality_checks": [
+      {
+        "name": "valid_frames",
+        "status": "pass",
+        "value": 36,
+        "threshold": 12,
+        "message": "frames with enough valid depth"
+      },
+      {
+        "name": "angular_gap",
+        "status": "pass",
+        "value": 10.0,
+        "threshold": {
+          "warn": 15.0,
+          "fail": 30.0
+        },
+        "message": "largest uncovered turntable arc between recorded angles"
+      },
+      {
+        "name": "valid_pixel_fraction",
+        "status": "pass",
+        "value": 0.13557490596064814,
+        "threshold": 0.02,
+        "message": "valid depth pixels / all pixels (the subject only fills part of the image)"
+      },
+      {
+        "name": "mesh_nonempty",
+        "status": "pass",
+        "value": 88183,
+        "threshold": 100,
+        "message": "reconstructed mesh has enough triangles"
+      },
+      {
+        "name": "single_component",
+        "status": "pass",
+        "value": 1,
+        "threshold": 1,
+        "message": "connected components remaining after conservative cleanup"
+      },
+      {
+        "name": "view_consistency_fitness",
+        "status": "pass",
+        "value": 1.0,
+        "threshold": 0.8,
+        "message": "median fraction of view points with a fused-surface correspondence; low = views do not overlap the fused surface (corrections below would be meaningless)"
+      },
+      {
+        "name": "view_consistency_translation",
+        "status": "pass",
+        "value": 0.002459010577667311,
+        "threshold": {
+          "warn": 0.004,
+          "fail": 0.005
+        },
+        "message": "median rigid correction needed to align a view to the fused surface; large = turntable centre, direction-sign or angle errors. Blind to line-of-sight calibration errors."
+      },
+      {
+        "name": "view_consistency_tilt",
+        "status": "fail",
+        "value": 0.2023703135833999,
+        "threshold": {
+          "warn": 0.08,
+          "fail": 0.15
+        },
+        "message": "median out-of-axis rotation correction per view; large = rotation-axis tilt error. Under-reads tilt toward/away from the camera."
+      }
+    ],
+    "sign_flipped": false,
+    "evaluation": {
+      "rows": [
+        {
+          "z_m": 0.09,
+          "true_circumference_m": 0.9207068231118931,
+          "measured_circumference_m": 0.9225209942135519,
+          "error_m": 0.0018141711016588236,
+          "error_pct": 0.19704112711222388,
+          "slice_status": "pass"
+        },
+        {
+          "z_m": 0.18,
+          "true_circumference_m": 0.8318795994143193,
+          "measured_circumference_m": 0.8256611485701262,
+          "error_m": -0.006218450844193146,
+          "error_pct": -0.7475181322599106,
+          "slice_status": "pass"
+        },
+        {
+          "z_m": 0.27,
+          "true_circumference_m": 0.7625278563189338,
+          "measured_circumference_m": 0.7517961883040591,
+          "error_m": -0.010731668014874685,
+          "error_pct": -1.4073804551457687,
+          "slice_status": "pass"
+        },
+        {
+          "z_m": 0.36,
+          "true_circumference_m": 0.825772123027759,
+          "measured_circumference_m": 0.8121374692971975,
+          "error_m": -0.013634653730561497,
+          "error_pct": -1.6511399876964794,
+          "slice_status": "pass"
+        },
+        {
+          "z_m": 0.44999999999999996,
+          "true_circumference_m": 0.8976219139767616,
+          "measured_circumference_m": 0.875415243572465,
+          "error_m": -0.02220667040429658,
+          "error_pct": -2.473944771013187,
+          "slice_status": "pass"
+        },
+        {
+          "z_m": 0.54,
+          "true_circumference_m": 0.9224465473847492,
+          "measured_circumference_m": 0.895201172141536,
+          "error_m": -0.027245375243213132,
+          "error_pct": -2.9535993516867904,
+          "slice_status": "pass"
+        }
+      ],
+      "n_slices_failed": 0,
+      "circumference_mae_m": 0.01364183155646631,
+      "circumference_bias_m": -0.013037107855913369,
+      "circumference_max_abs_error_m": 0.027245375243213132,
+      "circumference_max_abs_error_pct": 2.9535993516867904,
+      "true_height_m": 0.6,
+      "mesh_vertical_extent_m": 0.6000000238418579,
+      "height_error_m": 2.384185793236071e-08,
+      "mesh_z_min_m": 0.0,
+      "mesh_z_max_m": 0.6000000238418579
+    },
+    "run_dir": "data\\synthetic\\demo\\torso_calib_axis_tilt_1deg\\processing\\tsdf_20261123T082900Z"
+  },
+  {
+    "scenario": "torso_12_views_only",
+    "render_config": {
+      "n_views": 12,
+      "total_rotation_deg": 360.0,
+      "image_width": 192,
+      "image_height": 256,
+      "focal_px": 230.0,
+      "camera_distance_m": 1.2,
+      "camera_height_m": 0.3,
+      "camera_pitch_deg": 0.0,
+      "noise_sigma_m": 0.0,
+      "noise_sigma_rel": 0.0,
+      "dropout_prob": 0.0,
+      "angle_bias_deg": 0.0,
+      "angle_noise_deg": 0.0,
+      "calibration_axis_tilt_deg": 0.0,
+      "calibration_axis_tilt_azimuth_deg": 0.0,
+      "calibration_center_offset_m": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "march_step_m": 0.003,
+      "seed": 0
+    },
+    "tsdf_params": {
+      "voxel_length_m": 0.004,
+      "sdf_trunc_m": 0.02,
+      "depth_trunc_m": 3.0,
+      "depth_min_m": 0.1,
+      "min_confidence": 1,
+      "weight_threshold": 1.0,
+      "block_resolution": 16,
+      "block_count": 200000,
+      "min_cluster_fraction": 0.05,
+      "pointcloud_voxel_m": 0.004
+    },
+    "quality_passed": true,
+    "quality_checks": [
+      {
+        "name": "valid_frames",
+        "status": "pass",
+        "value": 12,
+        "threshold": 12,
+        "message": "frames with enough valid depth"
+      },
+      {
+        "name": "angular_gap",
+        "status": "warn",
+        "value": 30.0,
+        "threshold": {
+          "warn": 15.0,
+          "fail": 30.0
+        },
+        "message": "largest uncovered turntable arc between recorded angles"
+      },
+      {
+        "name": "valid_pixel_fraction",
+        "status": "pass",
+        "value": 0.13545057508680555,
+        "threshold": 0.02,
+        "message": "valid depth pixels / all pixels (the subject only fills part of the image)"
+      },
+      {
+        "name": "mesh_nonempty",
+        "status": "pass",
+        "value": 92842,
+        "threshold": 100,
+        "message": "reconstructed mesh has enough triangles"
+      },
+      {
+        "name": "single_component",
+        "status": "pass",
+        "value": 1,
+        "threshold": 1,
+        "message": "connected components remaining after conservative cleanup"
+      },
+      {
+        "name": "view_consistency_fitness",
+        "status": "pass",
+        "value": 1.0,
+        "threshold": 0.8,
+        "message": "median fraction of view points with a fused-surface correspondence; low = views do not overlap the fused surface (corrections below would be meaningless)"
+      },
+      {
+        "name": "view_consistency_translation",
+        "status": "pass",
+        "value": 0.0021376144156652057,
+        "threshold": {
+          "warn": 0.004,
+          "fail": 0.005
+        },
+        "message": "median rigid correction needed to align a view to the fused surface; large = turntable centre, direction-sign or angle errors. Blind to line-of-sight calibration errors."
+      },
+      {
+        "name": "view_consistency_tilt",
+        "status": "pass",
+        "value": 0.04296586975436447,
+        "threshold": {
+          "warn": 0.08,
+          "fail": 0.15
+        },
+        "message": "median out-of-axis rotation correction per view; large = rotation-axis tilt error. Under-reads tilt toward/away from the camera."
+      }
+    ],
+    "sign_flipped": false,
+    "evaluation": {
+      "rows": [
+        {
+          "z_m": 0.09,
+          "true_circumference_m": 0.9207068231118931,
+          "measured_circumference_m": 0.9358096005902203,
+          "error_m": 0.015102777478327223,
+          "error_pct": 1.6403459927972956,
+          "slice_status": "pass"
+        },
+        {
+          "z_m": 0.18,
+          "true_circumference_m": 0.8318795994143193,
+          "measured_circumference_m": 0.8551390855576223,
+          "error_m": 0.023259486143302976,
+          "error_pct": 2.7960159330363075,
+          "slice_status": "pass"
+        },
+        {
+          "z_m": 0.27,
+          "true_circumference_m": 0.7625278563189338,
+          "measured_circumference_m": 0.7817616329771818,
+          "error_m": 0.019233776658247992,
+          "error_pct": 2.5223703631101575,
+          "slice_status": "pass"
+        },
+        {
+          "z_m": 0.36,
+          "true_circumference_m": 0.825772123027759,
+          "measured_circumference_m": 0.8502792871571798,
+          "error_m": 0.024507164129420778,
+          "error_pct": 2.967787776555512,
+          "slice_status": "pass"
+        },
+        {
+          "z_m": 0.44999999999999996,
+          "true_circumference_m": 0.8976219139767616,
+          "measured_circumference_m": 0.9262904983251439,
+          "error_m": 0.028668584348382264,
+          "error_pct": 3.1938373943402256,
+          "slice_status": "pass"
+        },
+        {
+          "z_m": 0.54,
+          "true_circumference_m": 0.9224465473847492,
+          "measured_circumference_m": 0.9470153877617085,
+          "error_m": 0.024568840376959278,
+          "error_pct": 2.6634432582153402,
+          "slice_status": "pass"
+        }
+      ],
+      "n_slices_failed": 0,
+      "circumference_mae_m": 0.022556771522440084,
+      "circumference_bias_m": 0.022556771522440084,
+      "circumference_max_abs_error_m": 0.028668584348382264,
+      "circumference_max_abs_error_pct": 3.1938373943402256,
+      "true_height_m": 0.6,
+      "mesh_vertical_extent_m": 0.5960000157356262,
+      "height_error_m": -0.003999984264373757,
+      "mesh_z_min_m": 0.0,
+      "mesh_z_max_m": 0.5960000157356262
+    },
+    "run_dir": "data\\synthetic\\demo\\torso_12_views_only\\processing\\tsdf_20261123T082906Z"
+  },
+  {
+    "scenario": "torso_calib_center_err_LOS_6mm",
+    "render_config": {
+      "n_views": 36,
+      "total_rotation_deg": 360.0,
+      "image_width": 192,
+      "image_height": 256,
+      "focal_px": 230.0,
+      "camera_distance_m": 1.2,
+      "camera_height_m": 0.3,
+      "camera_pitch_deg": 0.0,
+      "noise_sigma_m": 0.0,
+      "noise_sigma_rel": 0.0,
+      "dropout_prob": 0.0,
+      "angle_bias_deg": 0.0,
+      "angle_noise_deg": 0.0,
+      "calibration_axis_tilt_deg": 0.0,
+      "calibration_axis_tilt_azimuth_deg": 0.0,
+      "calibration_center_offset_m": [
+        0.0,
+        0.006,
+        0.0
+      ],
+      "march_step_m": 0.003,
+      "seed": 0
+    },
+    "tsdf_params": {
+      "voxel_length_m": 0.004,
+      "sdf_trunc_m": 0.02,
+      "depth_trunc_m": 3.0,
+      "depth_min_m": 0.1,
+      "min_confidence": 1,
+      "weight_threshold": 1.0,
+      "block_resolution": 16,
+      "block_count": 200000,
+      "min_cluster_fraction": 0.05,
+      "pointcloud_voxel_m": 0.004
+    },
+    "quality_passed": true,
+    "quality_checks": [
+      {
+        "name": "valid_frames",
+        "status": "pass",
+        "value": 36,
+        "threshold": 12,
+        "message": "frames with enough valid depth"
+      },
+      {
+        "name": "angular_gap",
+        "status": "pass",
+        "value": 10.0,
+        "threshold": {
+          "warn": 15.0,
+          "fail": 30.0
+        },
+        "message": "largest uncovered turntable arc between recorded angles"
+      },
+      {
+        "name": "valid_pixel_fraction",
+        "status": "pass",
+        "value": 0.13557490596064814,
+        "threshold": 0.02,
+        "message": "valid depth pixels / all pixels (the subject only fills part of the image)"
+      },
+      {
+        "name": "mesh_nonempty",
+        "status": "pass",
+        "value": 92486,
+        "threshold": 100,
+        "message": "reconstructed mesh has enough triangles"
+      },
+      {
+        "name": "single_component",
+        "status": "pass",
+        "value": 1,
+        "threshold": 1,
+        "message": "connected components remaining after conservative cleanup"
+      },
+      {
+        "name": "view_consistency_fitness",
+        "status": "pass",
+        "value": 1.0,
+        "threshold": 0.8,
+        "message": "median fraction of view points with a fused-surface correspondence; low = views do not overlap the fused surface (corrections below would be meaningless)"
+      },
+      {
+        "name": "view_consistency_translation",
+        "status": "pass",
+        "value": 0.002170963643871297,
+        "threshold": {
+          "warn": 0.004,
+          "fail": 0.005
+        },
+        "message": "median rigid correction needed to align a view to the fused surface; large = turntable centre, direction-sign or angle errors. Blind to line-of-sight calibration errors."
+      },
+      {
+        "name": "view_consistency_tilt",
+        "status": "warn",
+        "value": 0.08784433233971722,
+        "threshold": {
+          "warn": 0.08,
+          "fail": 0.15
+        },
+        "message": "median out-of-axis rotation correction per view; large = rotation-axis tilt error. Under-reads tilt toward/away from the camera."
+      }
+    ],
+    "sign_flipped": false,
+    "evaluation": {
+      "rows": [
+        {
+          "z_m": 0.09,
+          "true_circumference_m": 0.9207068231118931,
+          "measured_circumference_m": 0.9529659987476063,
+          "error_m": 0.03225917563571323,
+          "error_pct": 3.5037402597583216,
+          "slice_status": "pass"
+        },
+        {
+          "z_m": 0.18,
+          "true_circumference_m": 0.8318795994143193,
+          "measured_circumference_m": 0.8587424865213051,
+          "error_m": 0.02686288710698581,
+          "error_pct": 3.2291796945012825,
+          "slice_status": "pass"
+        },
+        {
+          "z_m": 0.27,
+          "true_circumference_m": 0.7625278563189338,
+          "measured_circumference_m": 0.7957898641466372,
+          "error_m": 0.03326200782770339,
+          "error_pct": 4.362071175769777,
+          "slice_status": "pass"
+        },
+        {
+          "z_m": 0.36,
+          "true_circumference_m": 0.825772123027759,
+          "measured_circumference_m": 0.8599557332525545,
+          "error_m": 0.034183610224795435,
+          "error_pct": 4.139593632618466,
+          "slice_status": "pass"
+        },
+        {
+          "z_m": 0.44999999999999996,
+          "true_circumference_m": 0.8976219139767616,
+          "measured_circumference_m": 0.9318257914086858,
+          "error_m": 0.03420387743192421,
+          "error_pct": 3.8104993761114563,
+          "slice_status": "pass"
+        },
+        {
+          "z_m": 0.54,
+          "true_circumference_m": 0.9224465473847492,
+          "measured_circumference_m": 0.9550265141952079,
+          "error_m": 0.032579966810458716,
+          "error_pct": 3.5319083694146807,
+          "slice_status": "pass"
+        }
+      ],
+      "n_slices_failed": 0,
+      "circumference_mae_m": 0.03222525417293013,
+      "circumference_bias_m": 0.03222525417293013,
+      "circumference_max_abs_error_m": 0.03420387743192421,
+      "circumference_max_abs_error_pct": 4.362071175769777,
+      "true_height_m": 0.6,
+      "mesh_vertical_extent_m": 0.5960000157356262,
+      "height_error_m": -0.003999984264373757,
+      "mesh_z_min_m": 0.0,
+      "mesh_z_max_m": 0.5960000157356262
+    },
+    "run_dir": "data\\synthetic\\demo\\torso_calib_center_err_LOS_6mm\\processing\\tsdf_20261123T082916Z"
+  },
+  {
+    "scenario": "torso_calib_tilt_sideways_0.5deg",
+    "render_config": {
+      "n_views": 36,
+      "total_rotation_deg": 360.0,
+      "image_width": 192,
+      "image_height": 256,
+      "focal_px": 230.0,
+      "camera_distance_m": 1.2,
+      "camera_height_m": 0.3,
+      "camera_pitch_deg": 0.0,
+      "noise_sigma_m": 0.0,
+      "noise_sigma_rel": 0.0,
+      "dropout_prob": 0.0,
+      "angle_bias_deg": 0.0,
+      "angle_noise_deg": 0.0,
+      "calibration_axis_tilt_deg": 0.5,
+      "calibration_axis_tilt_azimuth_deg": 90.0,
+      "calibration_center_offset_m": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "march_step_m": 0.003,
+      "seed": 0
+    },
+    "tsdf_params": {
+      "voxel_length_m": 0.004,
+      "sdf_trunc_m": 0.02,
+      "depth_trunc_m": 3.0,
+      "depth_min_m": 0.1,
+      "min_confidence": 1,
+      "weight_threshold": 1.0,
+      "block_resolution": 16,
+      "block_count": 200000,
+      "min_cluster_fraction": 0.05,
+      "pointcloud_voxel_m": 0.004
+    },
+    "quality_passed": false,
+    "quality_checks": [
+      {
+        "name": "valid_frames",
+        "status": "pass",
+        "value": 36,
+        "threshold": 12,
+        "message": "frames with enough valid depth"
+      },
+      {
+        "name": "angular_gap",
+        "status": "pass",
+        "value": 10.0,
+        "threshold": {
+          "warn": 15.0,
+          "fail": 30.0
+        },
+        "message": "largest uncovered turntable arc between recorded angles"
+      },
+      {
+        "name": "valid_pixel_fraction",
+        "status": "pass",
+        "value": 0.13557490596064814,
+        "threshold": 0.02,
+        "message": "valid depth pixels / all pixels (the subject only fills part of the image)"
+      },
+      {
+        "name": "mesh_nonempty",
+        "status": "pass",
+        "value": 89540,
+        "threshold": 100,
+        "message": "reconstructed mesh has enough triangles"
+      },
+      {
+        "name": "single_component",
+        "status": "pass",
+        "value": 1,
+        "threshold": 1,
+        "message": "connected components remaining after conservative cleanup"
+      },
+      {
+        "name": "view_consistency_fitness",
+        "status": "pass",
+        "value": 1.0,
+        "threshold": 0.8,
+        "message": "median fraction of view points with a fused-surface correspondence; low = views do not overlap the fused surface (corrections below would be meaningless)"
+      },
+      {
+        "name": "view_consistency_translation",
+        "status": "pass",
+        "value": 0.0024370907081202892,
+        "threshold": {
+          "warn": 0.004,
+          "fail": 0.005
+        },
+        "message": "median rigid correction needed to align a view to the fused surface; large = turntable centre, direction-sign or angle errors. Blind to line-of-sight calibration errors."
+      },
+      {
+        "name": "view_consistency_tilt",
+        "status": "fail",
+        "value": 0.5032026768768874,
+        "threshold": {
+          "warn": 0.08,
+          "fail": 0.15
+        },
+        "message": "median out-of-axis rotation correction per view; large = rotation-axis tilt error. Under-reads tilt toward/away from the camera."
+      }
+    ],
+    "sign_flipped": false,
+    "evaluation": {
+      "rows": [
+        {
+          "z_m": 0.09,
+          "true_circumference_m": 0.9207068231118931,
+          "measured_circumference_m": 0.9280045373546939,
+          "error_m": 0.00729771424280079,
+          "error_pct": 0.7926208495050875,
+          "slice_status": "pass"
+        },
+        {
+          "z_m": 0.18,
+          "true_circumference_m": 0.8318795994143193,
+          "measured_circumference_m": 0.833231934615759,
+          "error_m": 0.001352335201439625,
+          "error_pct": 0.16256381360857147,
+          "slice_status": "pass"
+        },
+        {
+          "z_m": 0.27,
+          "true_circumference_m": 0.7625278563189338,
+          "measured_circumference_m": 0.7681923360193998,
+          "error_m": 0.0056644797004660186,
+          "error_pct": 0.7428554450208572,
+          "slice_status": "pass"
+        },
+        {
+          "z_m": 0.36,
+          "true_circumference_m": 0.825772123027759,
+          "measured_circumference_m": 0.8337234371486982,
+          "error_m": 0.00795131412093919,
+          "error_pct": 0.9628944716352335,
+          "slice_status": "pass"
+        },
+        {
+          "z_m": 0.44999999999999996,
+          "true_circumference_m": 0.8976219139767616,
+          "measured_circumference_m": 0.9075566271901415,
+          "error_m": 0.009934713213379909,
+          "error_pct": 1.1067814921502803,
+          "slice_status": "pass"
+        },
+        {
+          "z_m": 0.54,
+          "true_circumference_m": 0.9224465473847492,
+          "measured_circumference_m": 0.929293042062254,
+          "error_m": 0.006846494677504866,
+          "error_pct": 0.7422104507752272,
+          "slice_status": "pass"
+        }
+      ],
+      "n_slices_failed": 0,
+      "circumference_mae_m": 0.006507841859421733,
+      "circumference_bias_m": 0.006507841859421733,
+      "circumference_max_abs_error_m": 0.009934713213379909,
+      "circumference_max_abs_error_pct": 1.1067814921502803,
+      "true_height_m": 0.6,
+      "mesh_vertical_extent_m": 0.600000015925616,
+      "height_error_m": 1.5925616048129143e-08,
+      "mesh_z_min_m": -0.004000000189989805,
+      "mesh_z_max_m": 0.5960000157356262
+    },
+    "run_dir": "data\\synthetic\\demo\\torso_calib_tilt_sideways_0.5deg\\processing\\tsdf_20261123T082926Z"
+  },
+  {
+    "scenario": "torso_rotation_sign_flipped",
+    "render_config": {
+      "n_views": 36,
+      "total_rotation_deg": 360.0,
+      "image_width": 192,
+      "image_height": 256,
+      "focal_px": 230.0,
+      "camera_distance_m": 1.2,
+      "camera_height_m": 0.3,
+      "camera_pitch_deg": 0.0,
+      "noise_sigma_m": 0.0,
+      "noise_sigma_rel": 0.0,
+      "dropout_prob": 0.0,
+      "angle_bias_deg": 0.0,
+      "angle_noise_deg": 0.0,
+      "calibration_axis_tilt_deg": 0.0,
+      "calibration_axis_tilt_azimuth_deg": 0.0,
+      "calibration_center_offset_m": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "march_step_m": 0.003,
+      "seed": 0
+    },
+    "tsdf_params": {
+      "voxel_length_m": 0.004,
+      "sdf_trunc_m": 0.02,
+      "depth_trunc_m": 3.0,
+      "depth_min_m": 0.1,
+      "min_confidence": 1,
+      "weight_threshold": 1.0,
+      "block_resolution": 16,
+      "block_count": 200000,
+      "min_cluster_fraction": 0.05,
+      "pointcloud_voxel_m": 0.004
+    },
+    "quality_passed": false,
+    "quality_checks": [
+      {
+        "name": "valid_frames",
+        "status": "pass",
+        "value": 36,
+        "threshold": 12,
+        "message": "frames with enough valid depth"
+      },
+      {
+        "name": "angular_gap",
+        "status": "pass",
+        "value": 10.0,
+        "threshold": {
+          "warn": 15.0,
+          "fail": 30.0
+        },
+        "message": "largest uncovered turntable arc between recorded angles"
+      },
+      {
+        "name": "valid_pixel_fraction",
+        "status": "pass",
+        "value": 0.13557490596064814,
+        "threshold": 0.02,
+        "message": "valid depth pixels / all pixels (the subject only fills part of the image)"
+      },
+      {
+        "name": "mesh_nonempty",
+        "status": "pass",
+        "value": 129660,
+        "threshold": 100,
+        "message": "reconstructed mesh has enough triangles"
+      },
+      {
+        "name": "single_component",
+        "status": "pass",
+        "value": 1,
+        "threshold": 1,
+        "message": "connected components remaining after conservative cleanup"
+      },
+      {
+        "name": "view_consistency_fitness",
+        "status": "pass",
+        "value": 0.9571687396602364,
+        "threshold": 0.8,
+        "message": "median fraction of view points with a fused-surface correspondence; low = views do not overlap the fused surface (corrections below would be meaningless)"
+      },
+      {
+        "name": "view_consistency_translation",
+        "status": "fail",
+        "value": 0.030969937876356143,
+        "threshold": {
+          "warn": 0.004,
+          "fail": 0.005
+        },
+        "message": "median rigid correction needed to align a view to the fused surface; large = turntable centre, direction-sign or angle errors. Blind to line-of-sight calibration errors."
+      },
+      {
+        "name": "view_consistency_tilt",
+        "status": "fail",
+        "value": 1.654470483534873,
+        "threshold": {
+          "warn": 0.08,
+          "fail": 0.15
+        },
+        "message": "median out-of-axis rotation correction per view; large = rotation-axis tilt error. Under-reads tilt toward/away from the camera."
+      }
+    ],
+    "sign_flipped": true,
+    "evaluation": {
+      "rows": [
+        {
+          "z_m": 0.09,
+          "true_circumference_m": 0.9207068231118931,
+          "measured_circumference_m": 0.8614851921212446,
+          "error_m": -0.05922163099064848,
+          "error_pct": -6.432192040294167,
+          "slice_status": "warn"
+        },
+        {
+          "z_m": 0.18,
+          "true_circumference_m": 0.8318795994143193,
+          "measured_circumference_m": 0.8432111682425423,
+          "error_m": 0.011331568828222949,
+          "error_pct": 1.3621645291218685,
+          "slice_status": "warn"
+        },
+        {
+          "z_m": 0.27,
+          "true_circumference_m": 0.7625278563189338,
+          "measured_circumference_m": 0.8125824533443706,
+          "error_m": 0.0500545970254368,
+          "error_pct": 6.564297502136242,
+          "slice_status": "warn"
+        },
+        {
+          "z_m": 0.36,
+          "true_circumference_m": 0.825772123027759,
+          "measured_circumference_m": 0.8583873853198567,
+          "error_m": 0.03261526229209766,
+          "error_pct": 3.949668605003425,
+          "slice_status": "warn"
+        },
+        {
+          "z_m": 0.44999999999999996,
+          "true_circumference_m": 0.8976219139767616,
+          "measured_circumference_m": 0.8427390578271585,
+          "error_m": -0.05488285614960309,
+          "error_pct": -6.114250921800015,
+          "slice_status": "warn"
+        },
+        {
+          "z_m": 0.54,
+          "true_circumference_m": 0.9224465473847492,
+          "measured_circumference_m": 0.6976035971579864,
+          "error_m": -0.22484295022676282,
+          "error_pct": -24.3746318812966,
+          "slice_status": "warn"
+        }
+      ],
+      "n_slices_failed": 0,
+      "circumference_mae_m": 0.07215814425212863,
+      "circumference_bias_m": -0.0408243348702095,
+      "circumference_max_abs_error_m": 0.22484295022676282,
+      "circumference_max_abs_error_pct": 24.3746318812966,
+      "true_height_m": 0.6,
+      "mesh_vertical_extent_m": 0.5963907241821289,
+      "height_error_m": -0.0036092758178710715,
+      "mesh_z_min_m": 0.0,
+      "mesh_z_max_m": 0.5963907241821289
+    },
+    "run_dir": "data\\synthetic\\demo\\torso_rotation_sign_flipped\\processing\\tsdf_20261123T082936Z"
+  }
+]

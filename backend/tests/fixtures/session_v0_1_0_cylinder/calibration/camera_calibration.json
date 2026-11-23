@@ -1,0 +1,15 @@
+{
+  "schema_version": "0.1.0",
+  "calibration_id": "fixture_v0_1_0_cylinder_cal",
+  "camera_frame": "opencv_x_right_y_down_z_forward",
+  "pixel_convention": "index_center",
+  "image_width": 48,
+  "image_height": 64,
+  "intrinsics": {
+    "fx": 57.5,
+    "fy": 57.5,
+    "cx": 23.5,
+    "cy": 31.5
+  },
+  "method": "synthetic_truth"
+}

@@ -1,0 +1,54 @@
+{
+  "schema_version": "0.1.0",
+  "session_id": "fixture_v0_1_0_cylinder",
+  "frame_id": 5,
+  "timestamp_s": 2.0,
+  "turntable_angle_deg": 120.0,
+  "angle_source": "synthetic",
+  "depth": {
+    "file": "depth_raw.bin",
+    "dtype": "float32",
+    "byte_order": "little",
+    "width": 48,
+    "height": 64,
+    "unit": "meters",
+    "sha256": "ca6f48be80ffe63a5124032c5842233fad15ecff488e1869ba55b81d937a2fd8"
+  },
+  "confidence": {
+    "file": "confidence.bin",
+    "dtype": "uint8",
+    "width": 48,
+    "height": 64,
+    "sha256": "98ab30a484eb1e75b2a5c1e02ca7b85f6cf3cada8517b28ff2c62a4c60e69119"
+  },
+  "camera_transform": {
+    "convention": "world_from_camera",
+    "matrix": [
+      [
+        1.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        1.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        1.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    ]
+  },
+  "intrinsics_reference": "calibration/camera_calibration.json"
+}

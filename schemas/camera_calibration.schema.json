@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://digitaltrack.local/schemas/camera_calibration.schema.json",
+  "title": "Camera calibration (intrinsics for one image source at one resolution), dataset schema 0.2.0",
+  "type": "object",
+  "required": ["schema_version", "calibration_id", "camera_frame", "pixel_convention", "image_source", "image_width", "image_height", "intrinsics"],
+  "properties": {
+    "schema_version": {"const": "0.2.0"},
+    "calibration_id": {"type": "string", "minLength": 1},
+    "camera_frame": {"const": "opencv_x_right_y_down_z_forward"},
+    "pixel_convention": {"const": "index_center", "description": "ray = ((u-cx)/fx, (v-cy)/fy, 1) with integer pixel indices"},
+    "image_source": {"enum": ["rgb", "depth"], "description": "which frame images these intrinsics apply to"},
+    "image_width": {"type": "integer", "minimum": 1, "description": "width of the images these intrinsics apply to"},
+    "image_height": {"type": "integer", "minimum": 1},
+    "intrinsics": {
+      "type": "object",
+      "required": ["fx", "fy", "cx", "cy"],
+      "properties": {
+        "fx": {"type": "number", "exclusiveMinimum": 0},
+        "fy": {"type": "number", "exclusiveMinimum": 0},
+        "cx": {"type": "number"},
+        "cy": {"type": "number"}
+      }
+    },
+    "distortion": {
+      "type": "object",
+      "description": "Absent or model 'none' means no distortion correction is applied.",
+      "required": ["model"],
+      "properties": {
+        "model": {"enum": ["none", "opencv_brown_conrady"]},
+        "coefficients": {"type": "array", "items": {"type": "number"},
+                         "description": "OpenCV order k1,k2,p1,p2[,k3[,k4,k5,k6]]"}
+      }
+    },
+    "video_mode": {
+      "type": "object",
+      "description": "Recording mode the calibration is valid for (video input).",
+      "properties": {
+        "width": {"type": "integer"}, "height": {"type": "integer"},
+        "frame_rate": {"type": "number"}, "codec": {"type": "string"},
+        "lens": {"type": "string"}, "notes": {"type": "string"}
+      }
+    },
+    "quality": {
+      "type": "object",
+      "properties": {
+        "reprojection_rms_px": {"type": "number", "minimum": 0},
+        "views_used": {"type": "integer", "minimum": 0}
+      }
+    },
+    "method": {"type": "string"}
+  }
+}

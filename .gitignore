@@ -1,0 +1,78 @@
+# --- Scan data (sensitive personal data; never commit) ---
+scan_*/
+scans/
+data/
+datasets/
+**/processing/
+*.ply
+*.obj
+*.stl
+*.pcd
+*.npy
+*.npz
+*.exr
+*.depth
+*.heic
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+*.egg-info/
+dist/
+build/
+.coverage
+htmlcov/
+
+# --- Models / weights ---
+*.pt
+*.pth
+*.ckpt
+*.onnx
+*.mlmodel
+*.mlpackage
+*.safetensors
+models/weights/
+# SMPL / SMPL-X licensed assets
+smpl*/
+SMPL*/
+
+# --- Videos (sensitive; never commit) ---
+*.mov
+*.MOV
+*.mp4
+*.MP4
+*.m4v
+*.avi
+*.mkv
+
+# --- Tool-generated indexes ---
+.codesight/
+.graphify/
+
+# --- Secrets / env ---
+.env
+.env.*
+*.pem
+*.key
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+.claude/settings.local.json
+
+
+C:\Users\icroc\Desktop\texti\DIGITAL TRACK\CLAUDE.md
+
+
+CLAUDE.md
+
+HUMAN_BODY_SCANNING_POC_CONTEXT.md
