@@ -43,11 +43,12 @@ The primary workflow must run on CPU only (no NVIDIA GPU assumed). COLMAP dense 
 | `reconstruction.tsdf` | implemented, tested against analytic truth (depth branch) |
 | `quality.basic`, `quality.registration` | implemented; blind to line-of-sight calibration error (xfail test) |
 | `measurement.basic` | provisional horizontal-slice perimeter only |
-| `video` (probe, frame extraction) | Phase 1, not built |
-| `calibration` (intrinsics, markers) | Phase 1, empty placeholder |
+| `ingest` (capture metadata, Camera-app video probe + lossless frame extraction -> `video_rgb` session, ingest from a finalized upload) | implemented, tested on synthetic videos; no RGB-D export adapter (no real export inspected). See [ingest_and_calibration.md](ingest_and_calibration.md) |
+| `calibration` (chessboard intrinsics -> `camera_calibration.json`; scale from known lengths; floor-plane fit) | implemented, tested on synthetic data; scale and floor results not persisted (no schema field). No ChArUco, no pose/angle estimation. See [ingest_and_calibration.md](ingest_and_calibration.md) |
 | segmentation, visual hull, synthetic RGB | Phase 2, not built |
 | `longitudinal`, `reporting`, `experimental` | empty placeholders |
-| web frontend / API / worker | Phase 3, not started |
+| `experimental` (RGB visual-hull demo; `body_regions` head/trunk/arms/legs split) | experimental, all output `unreliable`/`provisional`, display only. Region split is a height/width heuristic (crotch falls back to a fixed 0.47 when legs touch); never used for measurement |
+| web frontend / API / job runner | upload -> ingest -> visual-hull mesh job -> viewer works end to end (experimental, non-metric). **Body avatar** page: own scan mesh coloured per region, with **DEMO** body-composition readings (`frontend/src/demoData.js`); no real BCM values, no standard ranges, nothing derived from geometry. Auth, SQLite, longitudinal history not built |
 
 ## Open3D note
 

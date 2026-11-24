@@ -76,3 +76,11 @@ C:\Users\icroc\Desktop\texti\DIGITAL TRACK\CLAUDE.md
 CLAUDE.md
 
 HUMAN_BODY_SCANNING_POC_CONTEXT.md
+# --- Frontend ---
+frontend/node_modules/
+frontend/dist/
+
+# graphify-axet
+.graphify/
+
+demo_input
