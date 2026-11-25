@@ -1,6 +1,9 @@
+import RecordingGuide from "./RecordingGuide.jsx";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, filesFromDrop, formatBytes } from "./api.js";
 import MeshJobs, { ProcessButton } from "./MeshJobs.jsx";
+import ZipContents from "./ZipContents.jsx";
+import QuickCheck from "./QuickCheck.jsx";
 import AvatarView from "./AvatarView.jsx";
 
 const RECORDING_TYPES = [
@@ -21,9 +24,10 @@ const DEFAULT_MEASUREMENTS = {
   other: [],
 };
 
-const emptyMeasurement = (name = "") => ({ name, readings: ["", "", ""], instrument: "tape" });
+const emptyMeasurement = (name = "") => ({ name, readings: ["", "", ""], instrument: "tape", level: "" });
 
 const INITIAL_FORM = {
+  mode: "person", // "person" (default, short form) | "test" (R0-R5 sensor test recordings)
   recording_type: "R2",
   label: "",
   contains_person: "",
@@ -31,7 +35,7 @@ const INITIAL_FORM = {
   subject_id: "",
   device_model: "",
   os_version: "",
-  capture_app: "Stray Scanner",
+  capture_app: "Camera",
   capture_app_version: "",
   capture_settings: "",
   object_kind: "box",
@@ -58,9 +62,26 @@ function triState(v) {
   return v === "" ? null : v === "yes";
 }
 
-function buildMetadata(form, measurements) {
+function buildMetadata(form, measurements, files) {
+  const { mode, ...fields } = form;
+  if (mode === "person") {
+    return {
+      recording_type: "other",
+      label: form.label.trim() || `Person scan ${new Date().toISOString().slice(0, 10)}`,
+      contains_person: true,
+      consent_confirmed: form.consent_confirmed,
+      subject_id: form.subject_id,
+      device_model: form.device_model,
+      os_version: form.os_version,
+      capture_app: form.capture_app === "Camera" && files.some((f) => /\.zip$/i.test(f.path)) ? "Stray Scanner" : form.capture_app,
+      capture_app_version: form.capture_app_version,
+      notes: form.notes,
+      object_kind: "none",
+      measurements: [],
+    };
+  }
   const meta = {
-    ...form,
+    ...fields,
     object_textured: triState(form.object_textured),
     on_marker_disc: triState(form.on_marker_disc),
     ipad_touched_during_recording: triState(form.ipad_touched_during_recording),
@@ -76,6 +97,7 @@ function buildMetadata(form, measurements) {
         name: m.name.trim(),
         instrument: m.instrument.trim(),
         readings_mm: m.readings.filter((r) => r !== "").map(Number),
+        level_mm: m.level === "" || m.level == null ? null : Number(m.level),
       })),
   };
   return meta;
@@ -83,19 +105,27 @@ function buildMetadata(form, measurements) {
 
 function validate(form, measurements, files) {
   const errs = [];
+  if (form.subject_id && !/^[A-Za-z0-9_-]+$/.test(form.subject_id))
+    errs.push("Subject ID must be a pseudonymous code (letters, digits, - or _), never a name.");
+  if (form.mode === "person") {
+    if (!form.consent_confirmed) errs.push("Tick the consent box before uploading a person recording.");
+    if (!files.some((f) => /\.(mov|mp4|m4v|zip)$/i.test(f.path))) errs.push("Choose a Stray Scanner .zip or a video (.mov, .mp4).");
+    return errs;
+  }
   if (!form.label.trim()) errs.push("Add a short label (no personal names).");
   if (form.contains_person === "") errs.push("Say whether a person is visible in the recording.");
   if (form.contains_person === "yes" && !form.consent_confirmed)
     errs.push("Confirm consent was obtained under your team's process before uploading a person recording.");
-  if (form.subject_id && !/^[A-Za-z0-9_-]+$/.test(form.subject_id))
-    errs.push("Subject ID must be a pseudonymous code (letters, digits, - or _), never a name.");
   for (const k of ["camera_distance_m", "camera_height_m", "step_deg", "n_stops", "pause_s"]) {
     const n = toNumber(form[k]);
     if (Number.isNaN(n) || (n !== null && n <= 0)) errs.push(`${k.replaceAll("_", " ")} must be a positive number.`);
   }
-  for (const m of measurements)
+  for (const m of measurements) {
     for (const r of m.readings)
       if (r !== "" && !(Number(r) > 0)) errs.push(`Measurement "${m.name || "?"}": readings must be positive millimetres.`);
+    if (m.level && !(Number(m.level) > 0 && Number(m.level) < 2500))
+      errs.push(`Measurement "${m.name || "?"}": level must be millimetres above the floor (0 to 2500).`);
+  }
   if (!files.length) errs.push("Choose the export folder (or files) to upload.");
   return [...new Set(errs)];
 }
@@ -109,7 +139,12 @@ export default function App() {
   const [uploads, setUploads] = useState([]);
   const [selected, setSelected] = useState(null);
   const [errors, setErrors] = useState([]);
-  const [page, setPageState] = useState(window.location.hash === "#avatar" ? "avatar" : "capture");
+  const [page, setPageState] = useState(window.location.hash.startsWith("#avatar") ? "avatar" : "capture");
+  useEffect(() => {  // "#avatar/<job id>" (from "Show on Body avatar") opens the avatar page on that scan
+    const onHash = () => setPageState(window.location.hash.startsWith("#avatar") ? "avatar" : "capture");
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
   const setPage = (p) => { setPageState(p); window.history.replaceState(null, "", p === "avatar" ? "#avatar" : "#"); };
   const [jobsKey, setJobsKey] = useState(0);
   const [focusJob, setFocusJob] = useState(null);
@@ -122,6 +157,11 @@ export default function App() {
   }, [refresh]);
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.type === "checkbox" ? e.target.checked : e.target.value }));
+
+  const setMode = (mode) => {
+    setForm((f) => ({ ...f, mode, capture_app: mode === "person" ? "Camera" : "Stray Scanner", consent_confirmed: false }));
+    setErrors([]);
+  };
 
   const setObjectKind = (e) => {
     const kind = e.target.value;
@@ -147,7 +187,7 @@ export default function App() {
     const state = { phase: "uploading", id: null, done: new Set(), failed: new Map(), sent: 0, total: totalBytes, current: "" };
     setRun({ ...state });
     try {
-      state.id = (await api.create(buildMetadata(form, measurements))).id;
+      state.id = (await api.create(buildMetadata(form, measurements, files))).id;
       await uploadFiles(state);
     } catch (e) {
       setRun({ ...state, phase: "error", message: e.message });
@@ -219,15 +259,12 @@ export default function App() {
       <header className="top">
         <div>
           <h1>DIGITAL TRACK</h1>
-          <p className="sub">Capture upload · local only · files are stored exactly as exported</p>
+          <p className="sub">Local only · your files stay on this computer</p>
         </div>
         <nav className="tabs">
           <button className={page === "capture" ? "on" : ""} onClick={() => setPage("capture")}>Capture &amp; meshes</button>
           <button className={page === "avatar" ? "on" : ""} onClick={() => setPage("avatar")}>Body avatar</button>
         </nav>
-        <span className={`pill ${health ? "ok" : health === false ? "bad" : ""}`}>
-          {health ? `backend ${health.version}` : health === false ? "backend not reachable" : "checking…"}
-        </span>
       </header>
 
       {health === false && (
@@ -239,9 +276,44 @@ export default function App() {
       {page === "avatar" && <AvatarView />}
       {page === "capture" && (
       <main className="grid">
+        <RecordingGuide />
         <section className="card">
           <h2><span className="step">1</span>Recording details</h2>
+          <div className="seg kind">
+            <button className={form.mode === "person" ? "on" : ""} disabled={busy} onClick={() => setMode("person")}>Person scan</button>
+            <button className={form.mode === "test" ? "on" : ""} disabled={busy} onClick={() => setMode("test")}>Test recording</button>
+          </div>
 
+          {form.mode === "person" && (
+            <>
+              <div className="row">
+                <Field label="Label" hint="optional, no personal names">
+                  <input value={form.label} onChange={set("label")} maxLength={80} placeholder="e.g. front pose, take 1" disabled={busy} />
+                </Field>
+              </div>
+              <div className="row">
+                <Field label="Subject ID" hint="optional code, never a name">
+                  <input value={form.subject_id} onChange={set("subject_id")} maxLength={40} placeholder="e.g. S001" disabled={busy} />
+                </Field>
+              </div>
+              <details className="more">
+                <summary>More details (optional)</summary>
+                <div className="row three">
+                  <Field label="iPad model"><input value={form.device_model} onChange={set("device_model")} disabled={busy} /></Field>
+                  <Field label="iPadOS version"><input value={form.os_version} onChange={set("os_version")} disabled={busy} /></Field>
+                  <Field label="Capture app"><input value={form.capture_app} onChange={set("capture_app")} disabled={busy} /></Field>
+                </div>
+                <Field label="Notes"><textarea rows={2} value={form.notes} onChange={set("notes")} disabled={busy} /></Field>
+              </details>
+              <label className="confirm">
+                <input type="checkbox" checked={form.consent_confirmed} onChange={set("consent_confirmed")} disabled={busy} />
+                <span>Consent for this recording was obtained.</span>
+              </label>
+            </>
+          )}
+
+          {form.mode === "test" && (
+          <>
           <fieldset className="types">
             <legend>Recording type</legend>
             {RECORDING_TYPES.map((t) => (
@@ -292,7 +364,8 @@ export default function App() {
           {measurements.length > 0 && (
             <table className="meas">
               <thead>
-                <tr><th>Dimension</th><th colSpan={3}>Readings (mm), measure 3×</th><th>Instrument</th><th></th></tr>
+                <tr><th>Dimension</th><th colSpan={3}>Readings (mm), measure 3×</th><th>Instrument</th>
+                  <th title="Circumferences: height above the floor where the tape was held">Level (mm above floor)</th><th></th></tr>
               </thead>
               <tbody>
                 {measurements.map((m, i) => (
@@ -308,6 +381,8 @@ export default function App() {
                     ))}
                     <td><input value={m.instrument} disabled={busy}
                       onChange={(e) => setMeasurements((ms) => ms.map((x, j) => (j === i ? { ...x, instrument: e.target.value } : x)))} /></td>
+                    <td><input inputMode="decimal" className="num" value={m.level ?? ""} disabled={busy} placeholder="circumf. only"
+                      onChange={(e) => setMeasurements((ms) => ms.map((x, j) => (j === i ? { ...x, level: e.target.value } : x)))} /></td>
                     <td><button className="link" disabled={busy} onClick={() => setMeasurements((ms) => ms.filter((_, j) => j !== i))}>remove</button></td>
                   </tr>
                 ))}
@@ -354,11 +429,13 @@ export default function App() {
               <span>Consent for this recording was obtained under our team's process. The files stay on this computer and are never committed to git.</span>
             </label>
           )}
+          </>
+          )}
         </section>
 
         <section className="card">
-          <h2><span className="step">2</span>Export files</h2>
-          <DropZone onFiles={addFiles} disabled={busy} />
+          <h2><span className="step">2</span>{form.mode === "person" ? "Scan zip or video" : "Export files"}</h2>
+          <DropZone onFiles={addFiles} disabled={busy} person={form.mode === "person"} />
           {files.length > 0 && (
             <>
               <div className="summary">
@@ -399,14 +476,14 @@ export default function App() {
           ) : (
             <table className="uploads">
               <thead>
-                <tr><th>Created (UTC)</th><th>Type</th><th>Label</th><th>Files</th><th>Size</th><th>Status</th></tr>
+                <tr><th>Created (UTC)</th><th>Test</th><th>Label</th><th>Files</th><th>Size</th><th>Status</th></tr>
               </thead>
               <tbody>
                 {uploads.map((u) => (
                   <tr key={u.id} className={selected?.id === u.id ? "sel" : ""}
                     onClick={() => api.get(u.id).then(setSelected)}>
                     <td>{u.created_utc.replace("T", " ").replace("Z", "")}</td>
-                    <td>{u.recording_type}</td>
+                    <td>{u.recording_type === "other" ? "–" : u.recording_type}</td>
                     <td>{u.label}</td>
                     <td className="num">{u.file_count}</td>
                     <td className="num">{formatBytes(u.total_bytes)}</td>
@@ -445,7 +522,7 @@ function YesNo({ value, onChange, disabled }) {
   );
 }
 
-function DropZone({ onFiles, disabled }) {
+function DropZone({ onFiles, disabled, person }) {
   const [over, setOver] = useState(false);
   const folderRef = useRef(null);
   const filesRef = useRef(null);
@@ -464,10 +541,11 @@ function DropZone({ onFiles, disabled }) {
         if (!disabled) onFiles(await filesFromDrop(e.dataTransfer));
       }}
     >
-      <p><strong>Drop the export folder here</strong> (the whole folder, unchanged)</p>
+      <p>{person ? <><strong>Drop your scan .zip or video here</strong> (unchanged)</>
+        : <><strong>Drop the export folder here</strong> (the whole folder, unchanged)</>}</p>
       <div className="btns">
-        <button disabled={disabled} onClick={() => folderRef.current.click()}>Choose folder…</button>
-        <button disabled={disabled} onClick={() => filesRef.current.click()}>Choose files…</button>
+        {!person && <button disabled={disabled} onClick={() => folderRef.current.click()}>Choose folder…</button>}
+        <button disabled={disabled} onClick={() => filesRef.current.click()}>{person ? "Choose zip or video…" : "Choose files…"}</button>
       </div>
       <input ref={folderRef} type="file" webkitdirectory="" directory="" multiple hidden onChange={fromInput} />
       <input ref={filesRef} type="file" multiple hidden onChange={fromInput} />
@@ -509,20 +587,22 @@ function Details({ upload, onClose, onJobStarted }) {
   return (
     <div className="details">
       <div className="dhead">
-        <strong>{m.recording_type} · {m.label}</strong>
+        <strong>{m.label}</strong>
         <span className="mono">{upload.id}</span>
         <button className="link right" onClick={onClose}>close</button>
       </div>
       <dl>
         <dt>Device</dt><dd>{[m.device_model, m.os_version].filter(Boolean).join(", ") || "not stated"}</dd>
         <dt>App</dt><dd>{[m.capture_app, m.capture_app_version].filter(Boolean).join(" ") || "not stated"}</dd>
-        <dt>Object</dt><dd>{m.object_kind}</dd>
+        {m.object_kind !== "none" && <><dt>Object</dt><dd>{m.object_kind}</dd></>}
         {m.measurements.map((x, i) => (
-          <Fragment key={i}><dt>{x.name}</dt><dd>{x.readings_mm.join(" / ")} mm {x.instrument && `(${x.instrument})`}</dd></Fragment>
+          <Fragment key={i}><dt>{x.name}</dt><dd>{x.readings_mm.join(" / ")} mm {x.instrument && `(${x.instrument})`}{x.level_mm ? ` at ${x.level_mm} mm above floor` : ""}</dd></Fragment>
         ))}
         {m.notes && <><dt>Notes</dt><dd>{m.notes}</dd></>}
       </dl>
-      <ProcessButton upload={upload} onStarted={onJobStarted} />
+      <ProcessButton key={`p-${upload.id}`} upload={upload} onStarted={onJobStarted} />
+      <QuickCheck key={`q-${upload.id}`} upload={upload} />
+      <ZipContents key={upload.id} upload={upload} />
       <div className="filelist small">
         {upload.files.map((f) => (
           <div key={f.path} className="file">

@@ -40,6 +40,10 @@ class SegmentParams:
     dbscan_eps_m: float = 0.03
     dbscan_min_points: int = 10
     min_subject_points: int = 300
+    # which connected cluster is the subject: "largest" (default), "widest" (largest horizontal extent; first view
+    # without a background plate), "nearest_origin" (closest to the floor origin; later views without a plate)
+    cluster_select: str = "largest"
+    union_radius_m: float = 0.5  # non-"largest" modes: clusters with a centroid this close to the centre are joined
 
 
 @dataclass
@@ -58,7 +62,10 @@ class SubjectCloud:
 
 
 def estimate_floor(views: list[RGBDView], params: SegmentParams, *, source: str,
-                   up_hint=(0.0, -1.0, 0.0), max_points: int = 60000, seed: int = 0) -> FloorEstimate:
+                   up_hint=(0.0, -1.0, 0.0), max_points: int = 60000, seed: int = 0,
+                   gravity: bool = False) -> FloorEstimate:
+    """`gravity=True`: `up_hint` is a measured gravity direction, so only near-horizontal planes are candidates
+    and the floor may be a smaller share of the points (portrait framing shows little floor)."""
     rng = np.random.default_rng(seed)
     chunks = []
     for v in views:
@@ -69,12 +76,15 @@ def estimate_floor(views: list[RGBDView], params: SegmentParams, *, source: str,
     if len(pts) > max_points:
         pts = pts[rng.choice(len(pts), max_points, replace=False)]
     try:
-        plane = fit_floor_plane(pts, distance_threshold_m=params.floor_fit_threshold_m, seed=seed, up_hint=up_hint)
+        extra = {"max_normal_angle_deg": params.floor_max_tilt_deg, "min_inlier_fraction": 0.05} if gravity else {}
+        plane = fit_floor_plane(pts, distance_threshold_m=params.floor_fit_threshold_m, seed=seed, up_hint=up_hint,
+                                **extra)
     except FloorFitError as e:
         raise SegmentationError(f"floor plane not found: {e}") from e
     tilt = float(np.degrees(np.arccos(np.clip(np.dot(plane.normal, up_hint), -1, 1))))
     if tilt > params.floor_max_tilt_deg:
-        raise SegmentationError(f"dominant plane is tilted {tilt:.1f} deg from camera-up; it is probably a wall, "
+        raise SegmentationError(f"dominant plane is tilted {tilt:.1f} deg from {'gravity' if gravity else 'camera'}"
+                                "-up; it is probably a wall, "
                                 "not the floor. Frame the floor around the subject, or record an empty scene.")
     return FloorEstimate(plane, tilt, source)
 
@@ -121,6 +131,25 @@ def segment_subject(view: RGBDView, floor_from_cam: np.ndarray, params: SegmentP
     counts = np.bincount(labels[labels >= 0])
     best = int(np.argmax(counts))
     sel = labels == best
+    if params.cluster_select != "largest":
+        # A subject can fall apart into several clusters (depth gaps at a moving arm, median holes), so the
+        # subject is the UNION of every cluster whose centroid lies within `union_radius_m` (horizontally) of a
+        # centre: the floor origin ("nearest_origin": it turns in place) or the widest cluster ("widest": first
+        # view; poles, door frames and wall edges are thin). Clusters further away (other objects) stay out.
+        cent = np.array([pts[labels == l][:, :2].mean(0) for l in range(counts.size)])
+        big = [l for l in range(counts.size) if counts[l] >= params.min_subject_points]
+        if params.cluster_select == "nearest_origin":
+            centre = np.zeros(2)
+        elif params.cluster_select == "widest":
+            wid = lambda l: float(np.ptp(pts[labels == l][:, :2], axis=0).max())  # noqa: E731
+            centre = cent[max(big or [best], key=wid)]
+        else:
+            raise ValueError(f"unknown cluster_select {params.cluster_select!r}")
+        near = np.flatnonzero(np.hypot(*(cent - centre).T) < params.union_radius_m)
+        if near.size:
+            sel = np.isin(labels, near)
+        stats["clusters_joined"] = int(near.size)
+    stats["cluster_select"] = params.cluster_select
     stats.update({"clusters": int(counts.size), "subject_points": int(sel.sum()),
                   "second_cluster_points": int(np.sort(counts)[-2]) if counts.size > 1 else 0})
     if sel.sum() < params.min_subject_points:

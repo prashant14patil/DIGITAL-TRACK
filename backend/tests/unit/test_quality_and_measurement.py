@@ -58,5 +58,23 @@ def test_multiple_contours_pick_largest_and_warn():
     assert s.perimeter_m == pytest.approx(2 * np.pi * 0.15, rel=1e-3)
 
 
+def test_broken_main_outline_is_not_replaced_by_a_small_closed_fragment():
+    m = _cyl()
+    keep = ~np.isclose(np.arctan2(m.triangles_center[:, 1], m.triangles_center[:, 0]), 0.0, atol=0.4)
+    cut = trimesh.Trimesh(m.vertices, m.faces[keep], process=False)
+    s = slice_at_height(trimesh.util.concatenate([cut, _cyl(0.02, 0.6, 0.5)]), 0.3)
+    assert s.perimeter_m is None and s.status == "fail"
+    assert (s.n_closed_contours, s.n_open_polylines) == (1, 1)
+
+
+def test_small_open_scrap_beside_a_good_contour_warns_but_keeps_the_value():
+    m = _cyl(0.02, 0.6, 0.5)
+    keep = ~np.isclose(np.arctan2(m.triangles_center[:, 1], m.triangles_center[:, 0] - 0.5), 0.0, atol=0.4)
+    scrap = trimesh.Trimesh(m.vertices, m.faces[keep], process=False)
+    s = slice_at_height(trimesh.util.concatenate([_cyl(), scrap]), 0.3)
+    assert s.status == "warn" and s.n_open_polylines == 1
+    assert s.perimeter_m == pytest.approx(2 * np.pi * 0.15, rel=1e-4)
+
+
 def test_vertical_extent():
     assert vertical_extent(_cyl(h=0.6)) == pytest.approx((0.0, 0.6))

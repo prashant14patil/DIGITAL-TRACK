@@ -46,16 +46,21 @@ export default function AvatarView() {
   const raf = useRef(0);
 
   useEffect(() => {
-    api.jobs().then((all) => {
-      const ok = all.filter((j) => j.status === "complete" && j.result?.files?.includes("mesh_regions.glb"));
+    // RGB demo meshes (regions written by the job) + LiDAR depth meshes sent here with "Show on Body avatar"
+    Promise.all([api.jobs().catch(() => []), api.avatarScans().catch(() => [])]).then(([all, depth]) => {
+      const rgb = all.filter((j) => j.status === "complete" && j.result?.files?.includes("mesh_regions.glb"));
+      const ok = [...depth.map((d) => ({ ...d, _depth: true })), ...rgb];
       setJobs(ok);
-      if (ok.length) setJobId(ok[0].id);
-    }).catch(() => setJobs([]));
+      const wanted = window.location.hash.match(/^#avatar\/(job_[A-Za-z0-9_]+)$/)?.[1];
+      setJobId(ok.find((j) => j.id === wanted)?.id || ok[0]?.id || "");
+    });
   }, []);
+  const fileUrl = (j, name) => (j?._depth ? api.avatarFileUrl(j.id, name) : api.jobFileUrl(j.id, name));
   useEffect(() => {
     setRegions(null);
-    if (jobId) fetch(api.jobFileUrl(jobId, "regions.json")).then((r) => r.json()).then(setRegions).catch(() => {});
-  }, [jobId]);
+    const j = jobs?.find((x) => x.id === jobId);
+    if (j) fetch(fileUrl(j, "regions.json")).then((r) => r.json()).then(setRegions).catch(() => {});
+  }, [jobId, jobs]);
 
   const demo = source !== "mine";
   const readings = demo ? DEMO_READINGS : mine.readings;
@@ -106,15 +111,13 @@ export default function AvatarView() {
 
       {demo ? (
         <div className="banner warn">
-          <strong>DEMO readings.</strong> The body-composition values below are sample data, <b>not measurements of this
-          person</b>. Switch to "My readings" to enter real values from your Tanita. The body shape is the
-          experimental RGB scan (not measured, poses assumed); regions are an approximate geometric split.
+          <strong>DEMO values</strong>, <b>not measurements of this person</b>. The body shape is an experimental scan
+          and the body-part split is approximate.
         </div>
       ) : (
         <div className="banner">
-          Values are <b>typed in by hand</b> and shown as entered; they are not measured or checked by this app, and
-          nothing here is derived from the scan. The body shape is the experimental RGB scan (not measured, poses
-          assumed); regions are an approximate geometric split.
+          Values are shown <b>as you typed them</b>, not from the scan. The body shape is an experimental scan and the
+          body-part split is approximate.
         </div>
       )}
 
@@ -136,7 +139,7 @@ export default function AvatarView() {
             </div>
             {jobs.length > 1 && (
               <select value={jobId} onChange={(e) => setJobId(e.target.value)} title="scan">
-                {jobs.map((j) => <option key={j.id} value={j.id}>{j.label || j.upload_id} · {j.created_utc.slice(0, 10)}</option>)}
+                {jobs.map((j) => <option key={j.id} value={j.id}>{j._depth ? "LiDAR · " : "RGB demo · "}{j.label || j.upload_id} · {j.created_utc.slice(0, 10)}{j._depth ? ` · ${j.run_status}` : ""}</option>)}
               </select>
             )}
             <div className="seg">
@@ -146,8 +149,15 @@ export default function AvatarView() {
             </div>
           </div>
 
+          {job._depth && (
+            <div className={`banner ${job.run_status === "pass" ? "" : "warn"}`}>
+              <strong>LiDAR scan · status {job.run_status} · display only, not measured.</strong>{" "}
+              {job.run_status !== "pass" && "The scan did not pass every check, so its shape may be distorted. "}
+              The body-part split is approximate and no size is read from it.
+            </div>
+          )}
           {regions ? (
-            <AvatarViewer meshUrl={api.jobFileUrl(job.id, "mesh_regions.glb")} regions={regions}
+            <AvatarViewer meshUrl={fileUrl(job, "mesh_regions.glb")} regions={regions}
               regionColors={regionColors} view={view} callouts={callouts} />
           ) : <div className="avatar-stage" style={{ height: 560 }}><div className="viewer-msg">Loading…</div></div>}
           <div className="avatar-meta">
@@ -170,7 +180,6 @@ export default function AvatarView() {
               <Chip label="Weight" from={base?.weight_kg} to={current.weight_kg} unit="kg" />
               <Chip label="Body fat" from={base?.body_fat_pct} to={current.body_fat_pct} unit="%" goodWhen="down" />
               <Chip label="Muscle" from={base?.muscle_kg} to={current.muscle_kg} unit="kg" goodWhen="up" />
-              {demo && <span className="chip demo">DEMO</span>}
             </div>
           )}
           {!have && !demo && <p className="muted">Add your first reading above to fill in the avatar.</p>}
@@ -182,8 +191,7 @@ export default function AvatarView() {
             {keyOpen && (
               <div className="keybody">
                 {CATEGORIES.map((c) => <span key={c.key}><i style={{ background: c.color }} />{c.label}</span>)}
-                <small>{demo ? "DEMO: categories come with the sample readings; " : "Categories are only those you chose when entering a reading; "}
-                  no official standard ranges are loaded, so nothing is classified by this app. Body parts without a category stay grey.</small>
+                <small>{demo ? "Categories are part of the sample data." : "Only categories you entered are coloured; the rest stay grey."}</small>
               </div>
             )}
           </div>

@@ -219,3 +219,25 @@ a.link:hover { text-decoration: underline; }
 .rtable { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 14px; }
 .rtable th, .rtable td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); }
 .linkish { background: none; border: 0; color: var(--accent); cursor: pointer; text-decoration: underline; }
+
+/* ---- recording guide ---- */
+.guide summary { cursor: pointer; font-weight: 600; }
+.guide .cols { display: flex; flex-wrap: wrap; gap: 24px; }
+.guide .cols > div { flex: 1 1 320px; }
+
+/* ---- audit fixes ---- */
+.seg.kind { margin-bottom: 12px; }
+.more { margin: 8px 0 12px; }
+.more summary { cursor: pointer; color: var(--muted); margin-bottom: 8px; }
+.top { flex-wrap: wrap; gap: 12px; }
+.top nav.tabs button { white-space: nowrap; }
+@media (max-width: 720px) {
+  .avatar-card { padding: 10px; }
+  .callout { width: 112px; padding: 6px 8px; }
+  .callout.left { left: 6px; }
+  .callout.right { right: 6px; }
+  .callout strong { font-size: 16px; }
+  .callout em { position: static; display: inline-block; }
+  .timeline { flex-wrap: wrap; }
+  .timeline input[type=range] { flex-basis: 100%; order: -1; }
+}

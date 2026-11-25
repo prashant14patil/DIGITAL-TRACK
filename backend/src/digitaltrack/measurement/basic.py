@@ -11,11 +11,12 @@ from dataclasses import dataclass
 
 import numpy as np
 import trimesh
+from trimesh.intersections import mesh_plane
 
 from .. import OUTPUT_SCHEMA_VERSION
 
-ALGORITHM_VERSION = "basic-slice-0.1"
-DEFINITION_VERSION = "provisional-0"
+ALGORITHM_VERSION = "basic-slice-0.2"
+DEFINITION_VERSION = "provisional-1"
 
 
 @dataclass(frozen=True)
@@ -42,26 +43,74 @@ def _shoelace(xy: np.ndarray) -> float:
     return 0.5 * abs(float(np.dot(x, np.roll(y, -1)) - np.dot(y, np.roll(x, -1))))
 
 
+def _section_chains(tm: trimesh.Trimesh, z: float) -> list[tuple[np.ndarray, bool]]:
+    """Connected outlines of the horizontal section as (points, is_closed). Closed points are in walking order.
+
+    Built from raw plane/triangle segments because trimesh's Path discretisation silently drops outlines that
+    have a gap, which let a small closed fragment be reported as the section."""
+    seg = mesh_plane(tm, [0.0, 0.0, 1.0], [0.0, 0.0, z])
+    if not len(seg):
+        return []
+    pts, idx = np.unique(np.round(seg.reshape(-1, 3), 8), axis=0, return_inverse=True)
+    edges = np.sort(idx.reshape(-1, 2), axis=1)
+    edges = np.unique(edges[edges[:, 0] != edges[:, 1]], axis=0)  # an edge lying in the plane appears twice
+    if not len(edges):
+        return []
+    adj: dict[int, list[int]] = {}
+    for i, j in edges.tolist():
+        adj.setdefault(i, []).append(j)
+        adj.setdefault(j, []).append(i)
+    seen: set[int] = set()
+    chains = []
+    for start in adj:
+        if start in seen:
+            continue
+        order, stack = [], [start]  # depth-first: walks a simple loop in order
+        seen.add(start)
+        while stack:
+            node = stack.pop()
+            order.append(node)
+            for nxt in adj[node]:
+                if nxt not in seen:
+                    seen.add(nxt)
+                    stack.append(nxt)
+        closed = len(order) >= 3 and all(len(adj[n]) == 2 for n in order)
+        if closed:
+            order, prev, cur = [start], None, start
+            while True:
+                nxt = adj[cur][0] if adj[cur][0] != prev else adj[cur][1]
+                if nxt == start:
+                    break
+                order.append(nxt)
+                prev, cur = cur, nxt
+            chains.append((pts[order + [start]], True))
+        else:
+            lengths = [np.linalg.norm(pts[i] - pts[j]) for i in order for j in adj[i] if i < j]
+            chains.append((np.array([[sum(lengths), 0.0, 0.0]]), False))  # open: only its total length matters
+    return chains
+
+
+def _perimeter(loop: np.ndarray) -> float:
+    return float(np.linalg.norm(np.diff(loop[:, :2], axis=0), axis=1).sum())
+
+
 def slice_at_height(tm: trimesh.Trimesh, z: float) -> SliceResult:
     """Perimeter of the largest closed contour of the horizontal section at height z.
 
-    Largest-by-area is a provisional rule for single-torso test shapes; contour-selection
-    policy for real bodies (arms, multiple contours) is a Phase 3 item.
+    No value is returned when an open (broken) outline is longer than that contour: the main outline then has
+    a gap and the closed contour is only a fragment or a minor part. Largest-by-area is a provisional rule for
+    single-torso test shapes; contour-selection policy for real bodies is a Phase 3 item.
     """
-    sec = tm.section(plane_origin=[0.0, 0.0, z], plane_normal=[0.0, 0.0, 1.0])
-    if sec is None:
-        return SliceResult(z, None, None, 0, 0)
-    closed, n_open = [], 0
-    for poly in sec.discrete:
-        if len(poly) >= 4 and np.allclose(poly[0], poly[-1], atol=1e-9):
-            closed.append(poly)
-        else:
-            n_open += 1
+    chains = _section_chains(tm, z)
+    closed = [p for p, is_closed in chains if is_closed]
+    open_lengths = [float(p[0, 0]) for p, is_closed in chains if not is_closed]
     if not closed:
-        return SliceResult(z, None, None, 0, n_open)
+        return SliceResult(z, None, None, 0, len(open_lengths))
     best = max(closed, key=lambda p: _shoelace(p[:, :2]))
-    perim = float(np.linalg.norm(np.diff(best[:, :2], axis=0), axis=1).sum())
-    return SliceResult(z, perim, _shoelace(best[:, :2]), len(closed), n_open)
+    perim = _perimeter(best)
+    if open_lengths and max(open_lengths) >= perim:
+        return SliceResult(z, None, None, len(closed), len(open_lengths))
+    return SliceResult(z, perim, _shoelace(best[:, :2]), len(closed), len(open_lengths))
 
 
 def vertical_extent(tm: trimesh.Trimesh) -> tuple[float, float]:

@@ -11,7 +11,7 @@ import hashlib
 import json
 import platform
 import sys
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -27,10 +27,12 @@ from .fuse import fuse_views
 from .pose import PoseParams, estimate_poses, se2_params
 from .segment import (SegmentationError, SegmentParams, background_plate, estimate_floor, make_floor_frame,
                       segment_subject)
-from .stops import StopParams, detect_stops, median_view
+from .stops import StopParams, detect_stops, median_view, stop_threshold
 from .views import RGBDView, backproject, valid_mask
 
-PIPELINE_VERSION = "selfrot-pipeline-0.1"
+PIPELINE_VERSION = "selfrot-pipeline-0.2"  # 0.2: subject ROI from the image centre when there is no background
+NO_BACKGROUND_ROI_M = 0.75  # proposed: half an A-pose arm span plus margin; unvalidated
+PARTIAL_VIEW_DROP_M = 0.10  # proposed: drop a stop whose subject top is this far below the median top
 
 
 def default_tsdf() -> TSDFParams:
@@ -90,7 +92,7 @@ def run_self_rotation(views: list[RGBDView], out_root: str | Path, *, background
     # 1. stops
     if p.detect_stops and len(views) > 1:
         stops, scores = detect_stops(views, p.stops)
-        log["stops"] = {"n": len(stops), "changed_fraction": scores.tolist(),
+        log["stops"] = {"n": len(stops), "changed_fraction": scores.tolist(), "threshold": stop_threshold(scores, p.stops),
                         "stops": [asdict(s) for s in stops]}
         if not stops:
             return _fail(run_dir, log, "no stationary stops found (changed-pixel fraction never below "
@@ -101,12 +103,19 @@ def run_self_rotation(views: list[RGBDView], out_root: str | Path, *, background
         log["stops"] = {"n": len(key), "note": "stop detection disabled: each input view is one stop"}
 
     # 2. floor
+    # gravity from the device (if every view has it): required when the device was held portrait
+    ups = [v.up_camera for v in list(key) + list(background_views or [])]
+    up_kw: dict[str, Any] = {}
+    if ups and all(u is not None for u in ups):
+        u = np.mean(ups, axis=0)
+        up_kw = {"up_hint": tuple(float(x) for x in u / np.linalg.norm(u)), "gravity": True}
+        log["gravity_up_camera"] = list(up_kw["up_hint"])
     try:
         if background_views:
-            floor = estimate_floor(background_views, p.segment, source="background_views")
+            floor = estimate_floor(background_views, p.segment, source="background_views", **up_kw)
         else:
             warnings.append("no empty-scene recording: floor fitted from subject views; background not subtracted")
-            floor = estimate_floor(key, p.segment, source="subject_views")
+            floor = estimate_floor(key, p.segment, source="subject_views", **up_kw)
     except SegmentationError as e:
         return _fail(run_dir, log, str(e), warnings)
     plate = background_plate(background_views, p.segment) if background_views else None
@@ -116,11 +125,33 @@ def run_self_rotation(views: list[RGBDView], out_root: str | Path, *, background
 
     # 3. body-frame origin: floor projection of the subject centroid in the first stop
     k0 = key[0]
-    m0 = valid_mask(k0, min_confidence=p.segment.min_confidence, depth_min_m=p.segment.depth_min_m,
-                    depth_max_m=p.segment.depth_max_m)
-    provisional = make_floor_frame(floor, np.array([0.0, 0.0, float(np.median(k0.depth_m[m0]))]))
+    seg = p.segment
+    m0 = valid_mask(k0, min_confidence=seg.min_confidence, depth_min_m=seg.depth_min_m, depth_max_m=seg.depth_max_m)
+    hint_z = float(np.median(k0.depth_m[m0]))
+    if plate is None:
+        # No background plate: walls and furniture would win the largest-cluster test. Assume the subject is
+        # centred in the image (capture protocol), take its depth from the central patch and keep only points
+        # within a horizontal radius of it. Logged as a warning; an empty-scene recording is the proper fix.
+        h, w = k0.depth_m.shape
+        centre = np.zeros_like(m0)
+        centre[h // 4:3 * h // 4, 2 * w // 5:3 * w // 5] = True
+        if (m0 & centre).sum() >= 50:
+            hint_z = float(np.percentile(k0.depth_m[m0 & centre], 25))  # nearer quartile: the subject, not gaps
+        if seg.roi_radius_m is None:
+            seg = replace(seg, roi_radius_m=NO_BACKGROUND_ROI_M)
+            warnings.append(f"no background plate: only points within {NO_BACKGROUND_ROI_M} m (horizontal) of "
+                            "the subject at the image centre are used")
+        log["segmentation_roi"] = {"radius_m": seg.roi_radius_m, "centre_depth_m": hint_z,
+                                   "source": "central image patch of the first stop"}
+    provisional = make_floor_frame(floor, np.array([0.0, 0.0, hint_z]))
+    if plate is None and seg.cluster_select == "largest":
+        # static thin objects (poles, door frames) can out-number the person: first view picks the widest
+        # cluster, every later view the cluster nearest the subject's floor position (it turns in place)
+        seg0, seg = replace(seg, cluster_select="widest"), replace(seg, cluster_select="nearest_origin")
+    else:
+        seg0 = seg
     try:
-        s0 = segment_subject(k0, provisional, p.segment, plate)
+        s0 = segment_subject(k0, provisional, seg0, plate)
     except SegmentationError as e:
         return _fail(run_dir, log, f"first stop: {e}", warnings)
     c_floor = np.array([*s0.points_floor[:, :2].mean(0), 0.0])
@@ -131,7 +162,7 @@ def run_self_rotation(views: list[RGBDView], out_root: str | Path, *, background
     clouds, masks, kept, seg_log = [], [], [], []
     for k, v in enumerate(key):
         try:
-            s = segment_subject(v, floor_from_cam, p.segment, plate)
+            s = segment_subject(v, floor_from_cam, seg, plate)
             clouds.append(s.points_floor)
             masks.append(s.mask)
             kept.append(k)
@@ -139,6 +170,20 @@ def run_self_rotation(views: list[RGBDView], out_root: str | Path, *, background
         except SegmentationError as e:
             warnings.append(f"stop {k} dropped: {e}")
             seg_log.append({"stop": k, "view_index": v.index, "error": str(e)})
+    # partial views (subject still moving during the "stop", so the median depth has holes): the top of the
+    # subject is clearly lower than in the other stops. Dropped and logged, never patched.
+    if len(clouds) >= 5:
+        tops = np.array([float(np.percentile(c[:, 2], 99)) for c in clouds])
+        med_top = float(np.median(tops))
+        ok = tops >= med_top - PARTIAL_VIEW_DROP_M
+        for k in np.flatnonzero(~ok):
+            warnings.append(f"stop {kept[k]} dropped: subject top {tops[k]:.2f} m vs median {med_top:.2f} m "
+                            "(partial view; subject probably moving)")
+            seg_log[kept[k]]["error"] = "partial view (top too low)"
+        clouds = [c for c, o in zip(clouds, ok) if o]
+        masks = [m for m, o in zip(masks, ok) if o]
+        kept = [k for k, o in zip(kept, ok) if o]
+        log["subject_top_m"] = {"median": med_top, "per_stop": tops.tolist(), "drop_below_median_m": PARTIAL_VIEW_DROP_M}
     log["segmentation"] = seg_log
     if len(kept) < 2:
         return _fail(run_dir, log, "fewer than 2 stops could be segmented", warnings)

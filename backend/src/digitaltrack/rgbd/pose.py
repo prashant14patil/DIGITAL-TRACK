@@ -30,12 +30,13 @@ from dataclasses import asdict, dataclass, field
 
 import networkx as nx
 import numpy as np
+from scipy import fft as sfft
 from scipy.fft import next_fast_len
 from scipy.ndimage import gaussian_filter
 from scipy.optimize import least_squares
 from scipy.spatial import cKDTree
 
-ALGORITHM_VERSION = "selfrot-se2-correlation-0.1"
+ALGORITHM_VERSION = "selfrot-se2-correlation-0.2"  # 0.2: ambiguity = separate local maxima only
 
 
 class PoseEstimationError(RuntimeError):
@@ -68,6 +69,7 @@ class PoseParams:
     chain_tolerance_m: float = 0.05
     skip_edges: bool = True
     loop_closure: bool = True
+    closure_gap_deg: float | None = None  # try the closing edge if the summed turn is within this of 360 (default max_step_deg); real self-rotation under-counts steps
     max_loop_rotation_deg: float = 3.0
     max_loop_translation_m: float = 0.02  # floor of the limit; the limit grows as per-edge * sqrt(n)
     max_loop_translation_per_edge_m: float = 0.005
@@ -148,14 +150,15 @@ class _Searcher:
         self.c = src[:, :2].mean(0)
         self.g = _grid(src, dst, cell, max_shift_m, p.z_bin_m)
         b = gaussian_filter(_occupancy(dst, self.g), sigma=(0, p.blur_cells, p.blur_cells))
-        self.fb = np.fft.rfft2(b)
+        self.fb = sfft.rfft2(b, workers=-1)  # all cores; same result as numpy
         self.max_shift_cells = max_shift_m / cell
 
     def score(self, theta: float) -> tuple[float, np.ndarray]:
         """Best correlation score at this angle and the floor shift (metres) that achieves it."""
         r = se2(0, *self.c) @ se2(theta, 0, 0) @ se2(0, *(-self.c))
         a = _occupancy(apply_se2(r, self.src), self.g)
-        corr = np.fft.irfft2(np.sum(np.conj(np.fft.rfft2(a)) * self.fb, axis=0), s=(self.g.nx, self.g.ny))
+        corr = sfft.irfft2(np.sum(np.conj(sfft.rfft2(a, workers=-1)) * self.fb, axis=0), s=(self.g.nx, self.g.ny),
+                           workers=-1)
         sx = np.fft.fftfreq(self.g.nx, 1 / self.g.nx)
         sy = np.fft.fftfreq(self.g.ny, 1 / self.g.ny)
         allowed = np.hypot(sx[:, None], sy[None, :]) <= self.max_shift_cells
@@ -178,7 +181,14 @@ def search_se2(src: np.ndarray, dst: np.ndarray, p: PoseParams) -> tuple[np.ndar
     scores = np.array([coarse.score(t)[0] for t in thetas])
     k = int(np.argmax(scores))
     far = np.abs(wrap(thetas - thetas[k])) > np.radians(p.ambiguity_exclusion_deg)
-    ambiguity = float(scores[far].max() / scores[k]) if far.any() and scores[k] > 0 else 0.0
+    # Only a SEPARATE local maximum is a competing solution. The shoulder of one broad peak (smooth surfaces such
+    # as a human torso) is not: its width is angular uncertainty, reported via the information matrix. A flat
+    # response (every angle ties, e.g. a cylinder's spin) still counts, because ties are local maxima.
+    peak = np.ones_like(far)
+    peak[1:] &= scores[1:] >= scores[:-1]
+    peak[:-1] &= scores[:-1] >= scores[1:]
+    rivals = far & peak
+    ambiguity = float(scores[rivals].max() / scores[k]) if rivals.any() and scores[k] > 0 else 0.0
 
     # fine stage on the coarse-aligned source: small residual angle and shift window, finer grid
     m_coarse = coarse.transform(thetas[k], coarse.score(thetas[k])[1])
@@ -385,9 +395,10 @@ def estimate_poses(clouds: list[np.ndarray], p: PoseParams | None = None) -> Pos
     full_turn = False
     chain_all = _chain(by_pair, 0, n - 1, n)
     if chain_all is not None and n > 2:
-        summed = float(np.degrees(np.sum(np.diff(np.unwrap([0.0] + [se2_params(_chain(by_pair, 0, k, n))[0]
-                                                                     for k in range(1, n)])))))
-        full_turn = abs(360.0 - abs(summed)) <= p.max_step_deg
+        # a view bridged by a skip edge has no chain of its own from view 0: leave it out of the running sum
+        chained = [c for k in range(1, n) if (c := _chain(by_pair, 0, k, n)) is not None]
+        summed = float(np.degrees(np.sum(np.diff(np.unwrap([0.0] + [se2_params(c)[0] for c in chained])))))
+        full_turn = abs(360.0 - abs(summed)) <= (p.closure_gap_deg if p.closure_gap_deg is not None else p.max_step_deg)
         checks.append(_check("turn_coverage_deg", "pass" if full_turn else "warn", summed, 360.0,
                              "summed turn from view 0 to the last view" + ("" if full_turn else "; not a full turn, no loop closure")))
     else:

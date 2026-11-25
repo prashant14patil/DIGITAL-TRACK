@@ -16,6 +16,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from .. import __version__
+from .archive import inspect_archives
 from .jobs import JobManager, make_jobs_router
 from .readings import ReadingStore, make_readings_router
 from .storage import UploadError, UploadNotFound, UploadStore
@@ -33,6 +34,8 @@ class Measurement(BaseModel):
     name: str = Field(min_length=1, max_length=60)  # e.g. "length", "diameter"
     readings_mm: list[float] = Field(min_length=1, max_length=10)
     instrument: str = Field(default="", max_length=60)
+    level_mm: float | None = Field(default=None, gt=0, lt=2500,
+                                   description="circumferences: height above the floor where the tape was held")
 
     @field_validator("readings_mm")
     @classmethod
@@ -93,6 +96,10 @@ def create_app(data_dir: str | Path | None = None, *, serve_frontend: bool = Tru
                                 runner=job_runner, inline=jobs_inline)
     app.include_router(make_jobs_router(app.state.jobs))
     app.include_router(make_readings_router(ReadingStore(store.data_dir.parent / "readings.json")))
+    from .validation import make_validation_router  # quick recording check + mesh-vs-tape comparison
+    app.include_router(make_validation_router(store, app.state.jobs))
+    from .avatar import make_avatar_router  # send a LiDAR depth mesh to the Body avatar page (display only)
+    app.include_router(make_avatar_router(app.state.jobs))
 
     def _call(fn, *a):
         try:
@@ -118,6 +125,13 @@ def create_app(data_dir: str | Path | None = None, *, serve_frontend: bool = Tru
     def get_upload(upload_id: str):
         return _call(store.get, upload_id)
 
+    @app.post("/api/uploads/{upload_id}/inspect")
+    def inspect(upload_id: str):
+        """Unpack the upload's zip files into a derived copy and describe them (no format interpretation)."""
+        if _call(store.get, upload_id)["status"] != "complete":
+            raise HTTPException(409, "upload is not finalized yet")
+        return _call(inspect_archives, store.data_dir / upload_id)
+
     @app.put("/api/uploads/{upload_id}/files")
     async def put_file(upload_id: str, request: Request, path: str = Query(min_length=1, max_length=1024)):
         try:
@@ -140,6 +154,6 @@ def create_app(data_dir: str | Path | None = None, *, serve_frontend: bool = Tru
 
         @app.get("/{_path:path}", include_in_schema=False)
         def spa(_path: str):
-            return FileResponse(FRONTEND_DIST / "index.html")
+            return FileResponse(FRONTEND_DIST / "index.html", headers={"Cache-Control": "no-cache"})  # new builds show up
 
     return app

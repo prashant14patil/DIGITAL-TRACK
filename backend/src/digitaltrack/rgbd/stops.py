@@ -25,6 +25,19 @@ class StopParams:
     min_frames: int = 3
     depth_min_m: float = 0.2
     depth_max_m: float = 4.0
+    # Real LiDAR flickers at silhouette edges far above the synthetic noise floor (first real iPad recording:
+    # quietest frames ~0.7% changed, turning ~5-8%). Adaptive: threshold = P10 + adaptive_fraction*(P90 - P10),
+    # clipped to [max_changed_fraction, adaptive_cap]. Proposed values from ONE real recording; unvalidated.
+    adaptive: bool = False
+    adaptive_fraction: float = 0.3
+    adaptive_cap: float = 0.03
+
+
+def stop_threshold(scores: np.ndarray, p: StopParams) -> float:
+    if not p.adaptive or len(scores) < 10:
+        return p.max_changed_fraction
+    lo, hi = np.percentile(scores[1:], [10, 90])
+    return float(np.clip(lo + p.adaptive_fraction * (hi - lo), p.max_changed_fraction, p.adaptive_cap))
 
 
 @dataclass
@@ -53,7 +66,7 @@ def motion_scores(views: list[RGBDView], p: StopParams) -> np.ndarray:
 def detect_stops(views: list[RGBDView], p: StopParams | None = None) -> tuple[list[Stop], np.ndarray]:
     p = p or StopParams()
     s = motion_scores(views, p)
-    still = s < p.max_changed_fraction
+    still = s < stop_threshold(s, p)
     # frame i belongs to a still run if it matches the previous frame (i) or the next frame (i+1)
     member = still.copy()
     member[:-1] |= still[1:]
@@ -89,7 +102,7 @@ def median_view(views: list[RGBDView], stop: Stop, p: StopParams | None = None) 
         conf = np.min(np.stack([f.confidence for f in frames]), axis=0)  # conservative
     return RGBDView(key.index, depth, key.intrinsics, conf, key.timestamp_s, key.rgb,
                     {"derived_from": [f.index for f in frames], "method": "temporal_median", **key.source},
-                    derived=True)
+                    derived=True, up_camera=key.up_camera)
 
 
 def params_dict(p: StopParams) -> dict:

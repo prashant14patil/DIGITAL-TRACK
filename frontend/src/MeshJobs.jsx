@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "./api.js";
 import MeshViewer from "./MeshViewer.jsx";
+import ScanReview from "./ScanReview.jsx";
+import DepthResult from "./DepthResult.jsx";
 
-const VIDEO = /\.(mov|mp4|m4v)$/i;
+const VIDEO = /\.(mov|mp4|m4v|zip)$/i;
+const ZIP = /\.zip$/i;
 
 export const videoFiles = (upload) => (upload?.files || []).map((f) => f.path).filter((p) => VIDEO.test(p));
 
@@ -12,12 +15,18 @@ export function ProcessButton({ upload, onStarted }) {
   const [file, setFile] = useState(videos[0] || "");
   const [err, setErr] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [bg, setBg] = useState("");
+  const [others, setOthers] = useState([]);
+  const isZip = ZIP.test(file);
+  useEffect(() => {
+    if (isZip) api.list().then((l) => setOthers(l.filter((u) => u.id !== upload.id && u.status === "complete"))).catch(() => {});
+  }, [isZip, upload.id]);
   if (upload.status !== "complete" || !videos.length) return null;
   async function start() {
     setBusy(true);
     setErr(null);
     try {
-      onStarted(await api.process(upload.id, file));
+      onStarted(await api.process(upload.id, file, isZip ? bg : ""));
     } catch (e) {
       setErr(e.message);
     } finally {
@@ -31,8 +40,22 @@ export function ProcessButton({ upload, onStarted }) {
           {videos.map((v) => <option key={v} value={v}>{v}</option>)}
         </select>
       )}
-      <button className="primary" disabled={busy} onClick={start}>Create 3D mesh (experimental)</button>
-      <small className="muted">RGB-only demo: non-metric, poses assumed. Takes a few minutes.</small>
+      {isZip && (
+        <label className="field">
+          <span className="lbl">Empty-scene recording<small> · recommended: separates the person from walls and furniture</small></span>
+          <select value={bg} onChange={(e) => setBg(e.target.value)} disabled={busy}>
+            <option value="">none</option>
+            {others.map((u) => <option key={u.id} value={u.id}>{u.label} · {u.created_utc.replace("T", " ").replace("Z", "")}</option>)}
+          </select>
+        </label>
+      )}
+      <button className="primary" disabled={busy} onClick={start}>
+        {ZIP.test(file) ? "Create 3D mesh from LiDAR depth" : "Create 3D mesh (experimental)"}
+      </button>
+      <small className="muted">
+        {ZIP.test(file) ? "Stray Scanner zip: depth fusion in metres, not yet validated. Takes a few minutes."
+          : "RGB-only demo: non-metric, poses assumed. Takes a few minutes."}
+      </small>
       {err && <div className="errors">{err}</div>}
     </div>
   );
@@ -104,7 +127,8 @@ function JobResult({ job, onClose }) {
       {(job.status === "queued" || job.status === "running") && (
         <p className="muted">Working: {job.stage} ({Math.round(100 * job.progress)}%). This page updates automatically.</p>
       )}
-      {job.status === "complete" && r && (
+      {job.kind === "rgbd_depth" && job.status !== "queued" && job.status !== "running" && <DepthResult job={job} />}
+      {job.kind !== "rgbd_depth" && job.status === "complete" && r && (
         <>
           <div className="banner warn">
             <strong>Experimental · not measured · poses assumed.</strong> This mesh is height-normalised (not in
@@ -112,6 +136,7 @@ function JobResult({ job, onClose }) {
             body dimensions from it. Status: <span className="mono">{r.status}</span>
           </div>
           <MeshViewer url={file("mesh.glb")} />
+          <ScanReview job={job} />
           <div className="row">
             <a className="link" href={file("mesh.glb")} download={`${job.id}_mesh.glb`}>download mesh (.glb)</a>
             <a className="link" href={file("report.json")} target="_blank" rel="noreferrer">report.json</a>

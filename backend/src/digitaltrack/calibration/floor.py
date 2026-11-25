@@ -47,7 +47,11 @@ def _plane_from(p: np.ndarray) -> tuple[np.ndarray, float] | None:
 
 def fit_floor_plane(points: np.ndarray, *, distance_threshold_m: float = 0.01, iterations: int = 500,
                     seed: int = 0, up_hint: tuple[float, float, float] = (0.0, -1.0, 0.0),
-                    min_inlier_fraction: float = 0.2) -> FloorPlane:
+                    min_inlier_fraction: float = 0.2, max_normal_angle_deg: float | None = None) -> FloorPlane:
+    """RANSAC plane. With `max_normal_angle_deg` (use only when `up_hint` is a measured gravity direction),
+    candidate planes whose normal is further than that from `up_hint` are ignored, so a wall cannot win."""
+    up = np.asarray(up_hint, float)
+    cos_min = None if max_normal_angle_deg is None else float(np.cos(np.radians(max_normal_angle_deg)))
     pts = np.asarray(points, dtype=float)
     if pts.ndim != 2 or pts.shape[1] != 3:
         raise FloorFitError(f"points must be (N, 3), got {pts.shape}")
@@ -61,6 +65,8 @@ def fit_floor_plane(points: np.ndarray, *, distance_threshold_m: float = 0.01, i
         if cand is None:
             continue
         n, d = cand
+        if cos_min is not None and abs(n @ up) < cos_min:
+            continue
         mask = np.abs(pts @ n + d) < distance_threshold_m
         c = int(mask.sum())
         if c > best_count:
@@ -94,7 +100,7 @@ def floor_from_camera(plane: FloorPlane, origin_hint: np.ndarray) -> np.ndarray:
     o = np.asarray(origin_hint, float)
     origin = o - plane.signed_distance(o[None])[0] * n
     x = np.array([1.0, 0.0, 0.0]) - n * n[0]
-    if np.linalg.norm(x) < 1e-6:  # camera x is (nearly) parallel to the normal
+    if np.linalg.norm(x) < 0.3:  # camera x is close to the normal (device held portrait): use the view direction
         x = np.array([0.0, 0.0, 1.0]) - n * n[2]
     x /= np.linalg.norm(x)
     y = np.cross(n, x)

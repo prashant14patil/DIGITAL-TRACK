@@ -29,6 +29,8 @@ class RGBDView:
     rgb: np.ndarray | None = None  # optional; NOT assumed pixel-aligned with depth
     source: dict[str, Any] = field(default_factory=dict)  # provenance: files, conversions, adapter name
     derived: bool = False  # True if computed from several raw frames (e.g. temporal median over a stop)
+    up_camera: np.ndarray | None = None  # gravity "up" unit vector in this camera's OpenCV frame (from the device
+    #                                      IMU/tracking), or None. Needed when the device was not held landscape.
 
     def validate(self) -> None:
         d = self.depth_m

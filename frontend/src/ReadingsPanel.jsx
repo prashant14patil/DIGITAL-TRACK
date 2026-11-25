@@ -95,7 +95,7 @@ export default function ReadingsPanel({ data, onChange }) {
         </div>
       </details>
 
-      <p className="muted"><button disabled title="Available once you have a Tanita export to share">Import Tanita file</button> coming later</p>
+      <p className="muted">Tanita file import will be added once a sample export is available.</p>
     </section>
   );
 }

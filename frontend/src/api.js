@@ -36,12 +36,18 @@ export const api = {
   discard: (id) => fetch(`/api/uploads/${id}`, { method: "DELETE" }).then(json),
 
   // processing jobs (experimental mesh)
-  process: (id, file) =>
+  process: (id, file, backgroundUploadId) =>
     fetch(`/api/uploads/${id}/process`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(file ? { file } : {}),
+      body: JSON.stringify({ ...(file ? { file } : {}), ...(backgroundUploadId ? { background_upload_id: backgroundUploadId } : {}) }),
     }).then(json),
+  inspect: (id) => fetch(`/api/uploads/${id}/inspect`, { method: "POST" }).then(json),
+  quickcheck: (id) => fetch(`/api/uploads/${id}/quickcheck`, { method: "POST" }).then(json),
+  comparison: (jobId) => fetch(`/api/jobs/${jobId}/comparison`).then(json),
+  prepareAvatar: (jobId) => fetch(`/api/jobs/${jobId}/avatar`, { method: "POST" }).then(json),
+  avatarScans: () => fetch("/api/avatar/scans").then(json),
+  avatarFileUrl: (jobId, name) => `/api/jobs/${jobId}/avatar/${name}`,
   jobs: () => fetch("/api/jobs").then(json),
   readings: () => fetch("/api/readings").then(json),
   addReading: (r) => send("POST", "/api/readings", r),
