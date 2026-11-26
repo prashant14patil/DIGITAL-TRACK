@@ -8,8 +8,9 @@ about the vertical axis only:
   the subject faced the camera at stop 0, so it faced -forward; the subject's left = the camera's right
   turn so that forward -> +Y (subject faces -Y) and camera-right -> +X
 and its floor-plane centre is moved to x = y = 0. This is a rigid motion: sizes are unchanged and nothing is
-measured from it. The metric mesh (fused_mesh.ply) is never modified. Every transform is written to
-avatar_display.json.
+measured from it. The display copy is then cleaned shape-preservingly (display_mesh.py: floor spill, loose
+debris, Taubin smoothing, decimation) with its deviation from the source checked and recorded. The metric mesh
+(fused_mesh.ply) is never modified. Every transform and cleanup step is written to avatar_display.json.
 """
 
 from __future__ import annotations
@@ -21,7 +22,7 @@ from pathlib import Path
 import numpy as np
 import open3d as o3d
 
-ALGORITHM = "depth-avatar-display-0.1 (EXPERIMENTAL)"
+ALGORITHM = "depth-avatar-display-0.3 (EXPERIMENTAL)"  # 0.3: closed display surface, estimated areas, landmarks
 DISPLAY_MESH = "mesh_avatar_display.ply"
 
 
@@ -50,6 +51,7 @@ def display_transform(floor_from_camera: np.ndarray, vertices: np.ndarray) -> tu
 def prepare_depth_avatar(run_dir: str | Path) -> dict:
     """Write mesh_avatar_display.ply, mesh_regions.glb, regions.json and avatar_display.json into `run_dir`."""
     from .body_regions import write_region_files
+    from .display_mesh import build_display_surface, clean_display_mesh
 
     run = Path(run_dir)
     mesh_p, log_p = run / "fused_mesh.ply", run / "run_log.json"
@@ -64,15 +66,29 @@ def prepare_depth_avatar(run_dir: str | Path) -> dict:
         raise ValueError("mesh too small for the avatar")
     t, info = display_transform(np.array(log["floor_from_camera"]), v)
     disp = o3d.geometry.TriangleMesh(mesh)
-    disp.transform(t)
+    disp.transform(t)  # rigid (rotation about z + horizontal shift): floor stays at z = 0
+    surf, estimated, surface_report = build_display_surface(disp)
+    if surf is not None:
+        disp, cleanup = surf, {"used": "closed display surface", **surface_report}
+    else:
+        disp, cleanup = clean_display_mesh(disp)
+        cleanup["closed_surface_attempt"] = surface_report
+        estimated = None
     o3d.io.write_triangle_mesh(str(run / DISPLAY_MESH), disp)
-    regions = write_region_files(run, mesh_name=DISPLAY_MESH)
+    # landmark heights from the measuring mesh (display transform is a rotation about z + horizontal shift: z kept)
+    levels = None
+    bm = run / "body_measurements.json"
+    if bm.is_file():
+        levels = json.loads(bm.read_text(encoding="utf-8")).get("landmarks")
+    regions = write_region_files(run, mesh_name=DISPLAY_MESH, levels_z=levels, estimated=estimated)
     record = {
         "algorithm": ALGORITHM, "created_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "source_mesh": "fused_mesh.ply (unchanged)", "display_mesh": DISPLAY_MESH,
         "transform_body_to_display": t.tolist(), **info,
+        "display_cleanup": cleanup,
+        "region_levels_from": "body_measurements.json landmarks" if levels else "region heuristic",
         "run_status": log.get("status"), "run_status_note": log.get("status_note"),
-        "units": "metres (rigid motion of the depth mesh; nothing is measured from the display copy)",
+        "units": "metres (rigid motion + shape-preserving cleanup of the depth mesh; nothing is measured from the display copy)",
         "assumption": "the subject faced the iPad at the first stop",
     }
     (run / "avatar_display.json").write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")

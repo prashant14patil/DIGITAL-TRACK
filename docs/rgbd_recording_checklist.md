@@ -30,12 +30,58 @@ Print sheets: `backend\.venv\Scripts\dt.exe print-sheets` writes PDFs to `data\p
 | R3 | Box on the floor, turned | Same as R4 but without the disc (only if there is no disc) | Pose method without equipment |
 
 - Repeat R2 and R4 (or R3) **3 times**, putting the box back each time.
-- A person comes only after the box works. Same protocol, A-pose, 15 deg steps, 3 s pauses.
+- A person comes only after the box works. Use the person protocol below.
+
+## Person recording, protocol v2 (2026-11-26)
+
+Why v2: the first person scan (2026-11-25, 26 stops) failed the pose check. The estimated steps added up to only
+**289 deg instead of 360 deg** (loop-closure error 48 deg), and the turn angle was the weakest-determined value on
+almost every step. A body is close to a cylinder, so its turn is fixed mainly by the arms, the feet and the head.
+If those move between stops, or a step is too small to measure, the angle drifts. Earlier attempts also had no
+detectable pauses, and some had the floor seen as a wall (iPad tilted or held in the wrong orientation).
+
+**iPad**
+- [ ] Landscape, on a tripod, lens at about **100-120 cm** height, **2.0-2.5 m** from the standing spot, tilted
+      slightly down. The whole body, **head to feet plus about 50 cm of floor** in front, is in frame at every stop.
+- [ ] Same orientation for every recording. Do not touch the iPad between the empty-scene clip and the person clip.
+
+**Room**
+- [ ] Record **R0 empty scene** first (10 s, nobody in view). It is used as the background, and without it the
+      subject is guessed from the image centre.
+- [ ] Mark the standing spot on the floor with tape. Mark the **foot positions** too (feet about 20 cm apart).
+- [ ] Nothing else in view within about 1 m of the person: no chair, bag or wall close behind.
+
+**Person**
+- [ ] Close-fitting, non-shiny clothing; hair tied up; no loose sleeves.
+- [ ] **A-pose: arms straight, about 30 deg away from the body, palms facing the legs.** The arms must not touch the
+      body and **must stay in exactly the same pose for the whole turn**. They are what fixes the turn angle.
+- [ ] Legs apart (the tape marks), head neutral, look straight ahead, breathe calmly, no talking.
+
+**Turning**
+- [ ] **24 stops of about 15 deg** each (a full turn of 360 deg). Turn with small shuffles of the feet and keep the
+      upper body and arms frozen. Never turn in steps larger than about 20 deg.
+- [ ] **Hold perfectly still for 3 s at each stop** (count "one-thousand-one ... three").
+- [ ] Finish facing the iPad exactly as you started, and hold still there for 3 s too (this closes the loop).
+- [ ] Someone else can call out "turn" / "hold"; they stay out of the frame.
+- [ ] Record **3 repeat scans**, stepping off and back on the marks between them.
+
+**Tape measurements of the person** (the reference for the validation report; take them right after the scans, same
+clothing). For each: measure **3 times**, write all readings in mm, and the **height above the floor** of the tape:
+- [ ] Height (stand against a wall, flat object on the head) — floor to top of head, hair pressed.
+- [ ] Chest — tape horizontal at the fullest part of the chest, under the arms; note its height above the floor.
+- [ ] Waist — horizontal at the narrowest part between ribs and hips; note its height.
+- [ ] Hip — horizontal at the widest part of the buttocks; note its height.
+- [ ] Thigh — horizontal, about 3 cm below the crotch, one leg; note its height and which leg.
+Enter these on the upload page (name, readings, tape height). The comparison uses the tape height when given
+(torso only, arms excluded at that height) and the landmark definitions otherwise.
+
+**After uploading**, check the result page: status must be `pass` or `warn`, every view placed, loop closure within
+the limits. If it fails, note which check failed and change one thing at a time.
 
 ## Transfer and upload
 
 - [ ] Copy each recording's export folder from the iPad **unchanged**. Do not open, rename or re-save files inside it.
-- [ ] Start the site (`backend\.venv\Scripts\dt.exe serve`), open http://127.0.0.1:8000 and upload each folder with
+- [ ] Start the site (`backend\.venv\Scripts\dt.exe serve`), open the site (e.g. http://127.0.0.1:8765) and upload each folder with
       **Choose folder…**. Pick the matching recording type (R0 to R5) and enter the measured box sizes, the camera
       distance and height, the step angle, the number of stops and the pause length.
 
@@ -44,6 +90,8 @@ Print sheets: `backend\.venv\Scripts\dt.exe print-sheets` writes PDFs to `data\p
 1. `dt inspect-upload data\real\uploads\<id>` describes the files without assuming a format.
 2. The importer is written against those real files (depth units, resolution, intrinsics, timing are checked, not
    assumed).
-3. `dt reconstruct-rgbd <R4 or R3 upload> --background <R0 upload>` builds the mesh and the inspection report.
-4. Box dimensions from the mesh are compared with your tape measurements. That is the first real accuracy evidence.
-   Until then, no accuracy is claimed.
+3. The web job (or `dt reconstruct-stray-tracked <recording> --background <empty scene>`) builds the metric mesh,
+   the body landmarks/measurements and the quality report.
+4. Box dimensions and body measurements are compared with your tape values on the result page.
+5. With several people and 3 repeat scans each: `dt validation-report <manifest.json> --out <folder>` gives MAE,
+   bias, Bland-Altman limits, repeatability and the smallest detectable change. Until then, no accuracy is claimed.

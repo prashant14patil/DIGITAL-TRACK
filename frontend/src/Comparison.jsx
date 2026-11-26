@@ -23,9 +23,10 @@ export default function Comparison({ job }) {
         <p className="muted">No tape measurements were entered for this upload. Enter them on the upload form (three
           readings each; for circumferences also the height above the floor where the tape was held) to compare.</p>
       ) : (
+        <div className="table-wrap">
         <table>
           <thead>
-            <tr><th>Dimension</th><th>Tape (mean ± SD)</th><th>Mesh</th><th>Difference</th><th>Status</th><th>Why</th></tr>
+            <tr><th>Dimension</th><th className="num">Tape (mean ± SD)</th><th className="num">Mesh</th><th className="num">Difference</th><th>Status</th><th>Why</th></tr>
           </thead>
           <tbody>
             {res.rows.map((r) => (
@@ -40,6 +41,7 @@ export default function Comparison({ job }) {
             ))}
           </tbody>
         </table>
+        </div>
       )}
       <p className="muted">
         {res.note} Run status: {res.run_status}. Only "measured" values passed every check; "unreliable" values are

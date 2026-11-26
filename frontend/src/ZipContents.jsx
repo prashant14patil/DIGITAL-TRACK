@@ -21,8 +21,8 @@ export default function ZipContents({ upload }) {
 
   return (
     <div className="process">
-      <button className="primary" disabled={busy} onClick={open}>{busy ? "Unpacking…" : "Open zip contents"}</button>
-      <small className="muted">The zip stays unchanged; a copy is unpacked. A 3D mesh from depth is not available yet.</small>
+      <button disabled={busy} onClick={open}>{busy ? "Unpacking…" : "Open zip contents"}</button>
+      <small className="muted">Lists what is inside. The zip stays unchanged; a copy is unpacked.</small>
       {err && <div className="errors">{err}</div>}
       {data && (
         <div className="filelist small">

@@ -34,6 +34,7 @@ export default function ScanReview({ job }) {
       {slices && (
         <>
           <h3>Rough slice readings (diagnosis only)</h3>
+          <div className="table-wrap">
           <table className="rtable">
             <thead><tr><th>Level</th><th>Outline length (% of body height)</th><th>Status</th></tr></thead>
             <tbody>
@@ -46,6 +47,7 @@ export default function ScanReview({ job }) {
               ))}
             </tbody>
           </table>
+          </div>
           <p className="muted">{slices.note}</p>
         </>
       )}

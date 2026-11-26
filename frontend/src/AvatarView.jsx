@@ -171,7 +171,7 @@ export default function AvatarView() {
               <input type="range" min={0} max={last} step={0.01} value={Math.min(t, last)}
                 onChange={(e) => { setPlaying(false); setT(Number(e.target.value)); }} />
               <span>{formatDate(latest.date)}</span>
-              <button className="replay" onClick={() => setPlaying(true)} disabled={playing}>▷ Replay</button>
+              <button className="replay" onClick={() => setPlaying(true)} disabled={playing}>Replay</button>
             </div>
           )}
 
@@ -186,7 +186,7 @@ export default function AvatarView() {
 
           <div className="key">
             <button className="keyhead" onClick={() => setKeyOpen((o) => !o)}>
-              <strong>Colour key</strong><span>{keyOpen ? "▴" : "▾"}</span>
+              <strong>Colour key</strong><span className="muted">{keyOpen ? "Hide" : "Show"}</span>
             </button>
             {keyOpen && (
               <div className="keybody">

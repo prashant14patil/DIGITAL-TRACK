@@ -1,8 +1,8 @@
 // Recording steps shown on the capture page. For the RGB-only mesh demo (person turning in place).
 export default function RecordingGuide() {
   return (
-    <details className="card wide guide">
-      <summary>How to record a better scan (read before filming)</summary>
+    <details className="card guide">
+      <summary><span>Recording guide</span><small>Read before filming</small></summary>
       <div className="cols">
         <div>
           <h3>Camera</h3>

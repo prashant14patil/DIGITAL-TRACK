@@ -1,6 +1,7 @@
 import RecordingGuide from "./RecordingGuide.jsx";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { api, filesFromDrop, formatBytes } from "./api.js";
+import { api, filesFromDrop, formatBytes, formatUtc } from "./api.js";
+import { BrandMark, Chevron, SectionHead, ThemeSwitch, UploadIcon } from "./ui.jsx";
 import MeshJobs, { ProcessButton } from "./MeshJobs.jsx";
 import ZipContents from "./ZipContents.jsx";
 import QuickCheck from "./QuickCheck.jsx";
@@ -255,30 +256,48 @@ export default function App() {
   }
 
   return (
-    <div className="page">
-      <header className="top">
-        <div>
-          <h1>DIGITAL TRACK</h1>
-          <p className="sub">Local only · your files stay on this computer</p>
+    <div className="app">
+      <header className="appbar">
+        <div className="appbar-inner">
+          <div className="brand"><BrandMark />DIGITAL TRACK</div>
+          <nav className="tabs" aria-label="Pages">
+            <button className={page === "capture" ? "on" : ""} onClick={() => setPage("capture")}>Capture &amp; meshes</button>
+            <button className={page === "avatar" ? "on" : ""} onClick={() => setPage("avatar")}>Body avatar</button>
+          </nav>
+          <div className={`conn ${health ? "up" : health === false ? "down" : ""}`} title="Runs on this computer only">
+            <i aria-hidden="true" />
+            {health ? `Local API v${health.version}` : health === false ? "API offline" : "Connecting…"}
+          </div>
+          <ThemeSwitch />
         </div>
-        <nav className="tabs">
-          <button className={page === "capture" ? "on" : ""} onClick={() => setPage("capture")}>Capture &amp; meshes</button>
-          <button className={page === "avatar" ? "on" : ""} onClick={() => setPage("avatar")}>Body avatar</button>
-        </nav>
       </header>
 
+      <div className="page">
       {health === false && (
         <div className="banner bad">
-          The backend is not running. Start it with <code>backend\.venv\Scripts\dt.exe serve</code>, then reload.
+          <strong>The local API is not running.</strong> Start it with <code>backend\.venv\Scripts\dt.exe serve</code>, then reload this page.
         </div>
       )}
 
-      {page === "avatar" && <AvatarView />}
+      {page === "avatar" && (
+        <>
+          <div className="page-head">
+            <h1>Body avatar</h1>
+            <p>Your own scan shown with body-composition readings. Display only: nothing is measured from the shape.</p>
+          </div>
+          <AvatarView />
+        </>
+      )}
       {page === "capture" && (
-      <main className="grid">
+      <main className="stack">
+        <div className="page-head">
+          <h1>Capture &amp; meshes</h1>
+          <p>Upload a recording, check it, then build a 3D mesh. Files stay on this computer.</p>
+        </div>
         <RecordingGuide />
-        <section className="card">
-          <h2><span className="step">1</span>Recording details</h2>
+        <section className="card composer">
+          <div className="pane">
+          <SectionHead step="Step 1" title="Recording details" />
           <div className="seg kind">
             <button className={form.mode === "person" ? "on" : ""} disabled={busy} onClick={() => setMode("person")}>Person scan</button>
             <button className={form.mode === "test" ? "on" : ""} disabled={busy} onClick={() => setMode("test")}>Test recording</button>
@@ -362,6 +381,7 @@ export default function App() {
           </div>
 
           {measurements.length > 0 && (
+            <div className="table-wrap">
             <table className="meas">
               <thead>
                 <tr><th>Dimension</th><th colSpan={3}>Readings (mm), measure 3×</th><th>Instrument</th>
@@ -383,13 +403,14 @@ export default function App() {
                       onChange={(e) => setMeasurements((ms) => ms.map((x, j) => (j === i ? { ...x, instrument: e.target.value } : x)))} /></td>
                     <td><input inputMode="decimal" className="num" value={m.level ?? ""} disabled={busy} placeholder="circumf. only"
                       onChange={(e) => setMeasurements((ms) => ms.map((x, j) => (j === i ? { ...x, level: e.target.value } : x)))} /></td>
-                    <td><button className="link" disabled={busy} onClick={() => setMeasurements((ms) => ms.filter((_, j) => j !== i))}>remove</button></td>
+                    <td><button className="link quiet" disabled={busy} onClick={() => setMeasurements((ms) => ms.filter((_, j) => j !== i))}>Remove</button></td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            </div>
           )}
-          <button className="link" disabled={busy} onClick={() => setMeasurements((ms) => [...ms, emptyMeasurement()])}>+ add dimension</button>
+          <button className="link add" disabled={busy} onClick={() => setMeasurements((ms) => [...ms, emptyMeasurement()])}>Add dimension</button>
 
           <h3>Setup</h3>
           <div className="row three">
@@ -431,18 +452,19 @@ export default function App() {
           )}
           </>
           )}
-        </section>
+          </div>
 
-        <section className="card">
-          <h2><span className="step">2</span>{form.mode === "person" ? "Scan zip or video" : "Export files"}</h2>
+          <div className="pane">
+          <SectionHead step="Step 2" title={form.mode === "person" ? "Scan zip or video" : "Export files"}
+            desc="Uploaded byte for byte, checksummed, then made read-only." />
           <DropZone onFiles={addFiles} disabled={busy} person={form.mode === "person"} />
           {files.length > 0 && (
             <>
               <div className="summary">
-                <span><strong>{files.length}</strong> files</span>
+                <span><strong>{files.length}</strong> {files.length === 1 ? "file" : "files"}</span>
                 <span><strong>{formatBytes(totalBytes)}</strong></span>
-                <span>folder{topFolders.length > 1 ? "s" : ""}: {topFolders.slice(0, 3).join(", ")}{topFolders.length > 3 ? "…" : ""}</span>
-                <button className="link" disabled={busy} onClick={() => setFiles([])}>clear</button>
+                <span className="path">{topFolders.slice(0, 3).join(", ")}{topFolders.length > 3 ? "…" : ""}</span>
+                <button className="link" disabled={busy} onClick={() => setFiles([])}>Clear</button>
               </div>
               <div className="filelist">
                 {files.slice(0, 400).map((f) => (
@@ -461,37 +483,41 @@ export default function App() {
           )}
 
           {!run && (
-            <button className="primary" onClick={startUpload} disabled={health === false}>Upload</button>
+            <div className="actions-bar">
+              <button className="primary" onClick={startUpload} disabled={health === false}>Upload</button>
+            </div>
           )}
           {run && <Progress run={run} onRetry={retry} onDiscard={discardRun} onNext={resetForNext} />}
+          </div>
         </section>
 
-        <section className="card wide">
-          <h2>
-            <span className="step">3</span>Uploads
-            <button className="link right" onClick={refresh}>refresh</button>
-          </h2>
+        <section className="card">
+          <SectionHead title="Uploads" desc="Select a row to see its files, check the recording or create a mesh."
+            actions={<button className="link" onClick={refresh}>Refresh</button>} />
           {uploads.length === 0 ? (
-            <p className="muted">Nothing uploaded yet.</p>
+            <p className="empty">Nothing uploaded yet.</p>
           ) : (
+            <div className="table-wrap">
             <table className="uploads">
               <thead>
-                <tr><th>Created (UTC)</th><th>Test</th><th>Label</th><th>Files</th><th>Size</th><th>Status</th></tr>
+                <tr><th>Created (UTC)</th><th>Test</th><th>Label</th><th className="num">Files</th><th className="num">Size</th><th>Status</th><th /></tr>
               </thead>
               <tbody>
                 {uploads.map((u) => (
                   <tr key={u.id} className={selected?.id === u.id ? "sel" : ""}
                     onClick={() => api.get(u.id).then(setSelected)}>
-                    <td>{u.created_utc.replace("T", " ").replace("Z", "")}</td>
-                    <td>{u.recording_type === "other" ? "–" : u.recording_type}</td>
+                    <td className="ts">{formatUtc(u.created_utc)}</td>
+                    <td className="mono">{u.recording_type === "other" ? "–" : u.recording_type}</td>
                     <td>{u.label}</td>
                     <td className="num">{u.file_count}</td>
                     <td className="num">{formatBytes(u.total_bytes)}</td>
                     <td><span className={`pill ${u.status === "complete" ? "ok" : "warn"}`}>{u.status}</span></td>
+                    <td className="go"><Chevron /></td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            </div>
           )}
           {selected && <Details upload={selected} onClose={() => setSelected(null)} onJobStarted={onJobStarted} />}
         </section>
@@ -499,6 +525,7 @@ export default function App() {
         <MeshJobs refreshKey={jobsKey} focusJobId={focusJob} />
       </main>
       )}
+      </div>
     </div>
   );
 }
@@ -541,11 +568,12 @@ function DropZone({ onFiles, disabled, person }) {
         if (!disabled) onFiles(await filesFromDrop(e.dataTransfer));
       }}
     >
-      <p>{person ? <><strong>Drop your scan .zip or video here</strong> (unchanged)</>
-        : <><strong>Drop the export folder here</strong> (the whole folder, unchanged)</>}</p>
+      <span className="drop-icon"><UploadIcon /></span>
+      <p className="drop-title">{person ? "Drop a scan .zip or video" : "Drop the export folder"}</p>
+      <p className="drop-sub">{person ? "Stray Scanner .zip, .mov or .mp4, uploaded unchanged" : "The whole folder, unchanged"}</p>
       <div className="btns">
         {!person && <button disabled={disabled} onClick={() => folderRef.current.click()}>Choose folder…</button>}
-        <button disabled={disabled} onClick={() => filesRef.current.click()}>{person ? "Choose zip or video…" : "Choose files…"}</button>
+        <button disabled={disabled} onClick={() => filesRef.current.click()}>{person ? "Browse files…" : "Choose files…"}</button>
       </div>
       <input ref={folderRef} type="file" webkitdirectory="" directory="" multiple hidden onChange={fromInput} />
       <input ref={filesRef} type="file" multiple hidden onChange={fromInput} />
@@ -589,7 +617,7 @@ function Details({ upload, onClose, onJobStarted }) {
       <div className="dhead">
         <strong>{m.label}</strong>
         <span className="mono">{upload.id}</span>
-        <button className="link right" onClick={onClose}>close</button>
+        <button className="link right" onClick={onClose}>Close</button>
       </div>
       <dl>
         <dt>Device</dt><dd>{[m.device_model, m.os_version].filter(Boolean).join(", ") || "not stated"}</dd>

@@ -39,6 +39,9 @@ DEPTH_RESULT_FILES = {  # depth jobs: public name -> file in the run directory (
     "mesh.ply": "fused_mesh.ply",
     "run_log.json": "run_log.json",
     "report.html": "report.html",
+    "mesh.obj": "fused_mesh.obj",  # tracked pipeline only
+    "quality_report.json": "quality_report.json",  # tracked pipeline only
+    "body_measurements.json": "body_measurements.json",  # tracked pipeline only (proposed definitions)
 }
 DEPTH_CONTINUOUS_VIEWS = 48  # fallback when no pauses are found: evenly spaced frames
 TARGET_FPS = 10.0  # frames kept per second of video (every n-th decoded frame)
@@ -61,6 +64,26 @@ STAGES = {"queued": (0.0, 0.0), "ingesting": (0.0, 0.15), "orienting": (0.15, 0.
           "rendering previews": (0.96, 0.03), "done": (1.0, 0.0),
           "unpacking": (0.0, 0.05), "loading depth": (0.05, 0.10), "reconstructing": (0.15, 0.80),
           "reconstructing (no pauses found, evenly spaced frames)": (0.55, 0.40), "writing results": (0.95, 0.05)}
+
+
+def _clear_readonly(func, path, _exc) -> None:
+    """rmtree helper: Windows refuses to delete read-only files; make writable and retry once."""
+    import os
+    import stat
+    os.chmod(path, stat.S_IWRITE | stat.S_IREAD)
+    func(path)
+
+
+def _body_summary(run_dir: Path) -> dict | None:
+    """Compact copy of body_measurements.json for the job result: every value keeps its status and reasons."""
+    p = run_dir / "body_measurements.json"
+    if not p.is_file():
+        return None
+    b = json.loads(p.read_text(encoding="utf-8"))
+    return {"definition_version": b.get("definition_version"), "status": b.get("status"), "flags": b.get("flags", []),
+            "landmarks": b.get("landmarks", {}),
+            "measurements": [{k: m.get(k) for k in ("name", "value", "unit", "status", "reasons", "level_z",
+                                                     "convex_hull_m")} for m in b.get("measurements", [])]}
 
 
 def utc_now() -> str:
@@ -278,6 +301,13 @@ class JobManager:
                     raise ValueError(f"empty-scene zip: {e}") from e
                 bg_views = bg_rec.views[:30]
                 source["background"] = {**b, "stray": bg_rec.info, "views_used": len(bg_views)}
+            if job.get("background") and (dirs[0] / "rgb.mp4").is_file():
+                # RGB-D tracked pipeline (rgbd.tracked): needs the empty scene and the RGB video. The first real
+                # export never closed the loop with the shape-only path below. On failure: fall back, reason kept.
+                tracked_error = self._run_tracked(job, dirs[0], bg_dirs[0], out_root, source, rec.info)
+                if tracked_error is None:
+                    return
+                source["tracked_pipeline_failed"] = tracked_error
             self._progress(job_id, "reconstructing", 0.0)
             res = run_self_rotation(rec.views, out_root, background_views=bg_views, source=source,
                                     run_id=f"selfrot_{job_id}", params=PipelineParams(stops=StopParams(adaptive=True, min_frames=6),
@@ -327,6 +357,53 @@ class JobManager:
             self._update(job_id, status="failed", finished_utc=utc_now(),
                          error=f"internal error ({type(e).__name__}): {e}; see traceback.txt in the job folder")
 
+    def _run_tracked(self, job: dict[str, Any], recording: Path, background: Path, out_root: Path, source: dict,
+                     stray_info: dict) -> str | None:
+        """Run rgbd.tracked for a depth job. Returns None when the job was completed, else the failure reason
+        (the caller then falls back to the shape-only self-rotation pipeline)."""
+        from ..rgbd.tracked import run_tracked
+
+        job_id = job["id"]
+        order = ["loading depth", "segmenting", "RGB features", "registering view pairs", "loop-closure search",
+                 "optimising pose graph", "fusing", "fusing (pass 1)", "consistency vote", "fusing (pass 2)",
+                 "exporting", "quality report", "split-half check"]
+
+        def tell(stage: str, frac: float) -> None:
+            k = order.index(stage) if stage in order else 0
+            self._progress(job_id, "reconstructing", (k + max(0.0, min(1.0, frac))) / len(order))
+
+        try:
+            res = run_tracked(recording, background, out_root, run_id=f"tracked_{job_id}", source=source,
+                              progress=tell)
+        except Exception as e:  # noqa: BLE001 - any failure: fall back, keep the reason
+            return f"{type(e).__name__}: {e}"
+        q, run_dir = res.quality, Path(res.run_dir)
+        files = [n for n, f in DEPTH_RESULT_FILES.items() if (run_dir / f).is_file()]
+        files += sorted(p.name for p in run_dir.glob("*.png"))
+        mesh = q.get("mesh") or {}
+        bounds = mesh.get("bounds_m")
+        result = {
+            "status": res.status,
+            "status_note": "Metric mesh from the RGB-D tracked pipeline. Not validated against tape or a known "
+                           "object: every dimension is diagnostic only.",
+            "warnings": q.get("warnings", []),
+            "mode": f"RGB-D tracked: feature pose graph, {q['views']['fused']} of {q['views']['posed']} views fused",
+            "n_views": q["views"]["fused"], "stray": stray_info,
+            "background_upload_id": (job.get("background") or {}).get("upload_id"),
+            "pose_checks": q.get("checks"),
+            "body_measurements": _body_summary(run_dir),
+            "mesh": {"vertices": mesh.get("vertices"), "triangles": mesh.get("triangles"),
+                     "holes": mesh.get("holes"),
+                     "height_extent_m": round(bounds[1][2] - bounds[0][2], 3) if bounds else None,
+                     "units": "metres (LiDAR depth; not validated against tape)"},
+            "files": files,
+        }
+        if "mesh.glb" not in files:
+            return "tracked pipeline wrote no mesh"
+        self._update(job_id, status="complete", stage="done", progress=1.0, finished_utc=utc_now(),
+                     run_dir=str(run_dir), result=result)
+        return None
+
     @staticmethod
     def _add_regions(run_dir: Path) -> None:
         """Display regions for the avatar view. Optional: a failure here never fails the mesh job."""
@@ -365,6 +442,39 @@ class JobManager:
                 self._update(job["id"], result={**(job.get("result") or {}), "files": files})
                 n += 1
         return n
+
+    def delete(self, job_id: str) -> dict[str, Any]:
+        """Remove a finished/failed job and its DERIVED outputs (mesh run folder, ingested session copy, avatar files).
+
+        The uploaded recording is raw data and is never touched: the mesh can be made again from it. Only folders
+        inside this manager's own derived-data roots are removed. Returns what was deleted (for the server log).
+        """
+        import shutil
+
+        with self._lock:
+            job = self.get(job_id)  # raises KeyError
+            if job["status"] in ("queued", "running"):
+                raise ValueError("this job is still being processed; wait until it finishes or fails")
+            processing_root = self.store.data_dir.parent / "processing"
+            targets: list[Path] = []
+            if job.get("session_id"):  # RGB jobs: ingested frames + processing/<run_id> live in the session copy
+                targets.append(self.sessions_dir / job["session_id"])
+            if job.get("run_dir"):
+                targets.append(Path(job["run_dir"]))
+            if job.get("kind") == "rgbd_depth":  # first attempt + "_continuous" fallback run
+                targets += (processing_root / job["upload_id"]).glob(f"selfrot_{job_id}*")
+                targets += (processing_root / job["upload_id"]).glob(f"tracked_{job_id}*")  # incl. failed attempts
+            targets.append(self.jobs_dir / job_id)
+            allowed = [r.resolve() for r in (self.sessions_dir, processing_root, self.jobs_dir)]
+            removed = []
+            for t in dict.fromkeys(p.resolve() for p in targets):
+                if not t.exists():
+                    continue
+                if not any(t != r and t.is_relative_to(r) for r in allowed):
+                    raise RuntimeError(f"refusing to delete {t}: outside the derived-data folders")
+                shutil.rmtree(t, onerror=_clear_readonly)  # session copies keep source files read-only
+                removed.append(str(t))
+            return {"id": job_id, "removed": removed}
 
     def result_file(self, job_id: str, name: str) -> Path:
         job = self.get(job_id)
@@ -413,6 +523,16 @@ def make_jobs_router(manager: JobManager) -> APIRouter:
         except KeyError:
             raise HTTPException(404, "job not found")
 
+    @r.delete("/api/jobs/{job_id}", status_code=204)
+    def delete_job(job_id: str):
+        """Remove a mesh (job + derived outputs). The uploaded recording stays."""
+        try:
+            manager.delete(job_id)
+        except KeyError:
+            raise HTTPException(404, "job not found")
+        except ValueError as e:
+            raise HTTPException(409, str(e))
+
     @r.get("/api/jobs/{job_id}/files/{name}")
     def get_file(job_id: str, name: str):
         try:
@@ -422,7 +542,7 @@ def make_jobs_router(manager: JobManager) -> APIRouter:
         except FileNotFoundError as e:
             raise HTTPException(404, str(e))
         media = {".glb": "model/gltf-binary", ".png": "image/png", ".json": "application/json",
-                 ".ply": "application/octet-stream", ".html": "text/html"}[p.suffix]
+                 ".ply": "application/octet-stream", ".obj": "model/obj", ".html": "text/html"}[p.suffix]
         return FileResponse(p, media_type=media, headers={"Cache-Control": "no-store"})
 
     return r

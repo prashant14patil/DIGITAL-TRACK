@@ -114,6 +114,67 @@ def _up_camera(row: dict[str, str]) -> np.ndarray | None:
     return up / np.linalg.norm(up)
 
 
+def imu_gravity_up_camera(root: str | Path) -> tuple[np.ndarray, dict]:
+    """Gravity 'up' in the OpenCV frame of the rear camera image, from the mean accelerometer reading in imu.csv.
+
+    imu.csv: timestamp, a_x, a_y, a_z (units of g, CoreMotion device frame: x right / y top / z out of the screen,
+    portrait), alpha_x..z (rad/s). At rest the accelerometer reads -gravity, so up_device = -a / |a|. The rear
+    camera's native image is landscape with the device top on the image LEFT, so camera x = -device y,
+    camera y = -device x, camera z = -device z (hardware mapping, independent of how the iPad is held).
+
+    Checked on the first real export (fixed mount): this direction agrees with the depth floor-plane normal within
+    1.5 deg and with the measured rotation axis of the turning person within 0.5-0.7 deg, whereas the 'up' derived
+    from the ARKit quaternion (`_up_camera`, convention not confirmed) differs from both by about 5 deg.
+    Valid only while the device is static; the spread of the readings is returned so callers can check that."""
+    p = Path(root) / "imu.csv"
+    if not p.is_file():
+        raise StrayFormatError("imu.csv missing")
+    with open(p, newline="", encoding="utf-8") as f:
+        rows = [{k.strip(): v for k, v in r.items() if k} for r in csv.DictReader(f)]
+    try:
+        a = np.array([[float(r["a_x"]), float(r["a_y"]), float(r["a_z"])] for r in rows])
+    except (KeyError, ValueError) as e:
+        raise StrayFormatError(f"imu.csv lacks a_x/a_y/a_z: {e}") from e
+    if len(a) < 10:
+        raise StrayFormatError("imu.csv has fewer than 10 rows")
+    g = float(np.linalg.norm(a.mean(0)))
+    if not 0.9 < g < 1.1:
+        raise StrayFormatError(f"mean acceleration magnitude {g:.3f} g; expected ~1 g (units or a moving device?)")
+    up_dev = -a.mean(0) / g
+    up = np.array([-up_dev[1], -up_dev[0], -up_dev[2]])
+    info = {"source": "imu.csv mean accelerometer", "rows": len(a), "mean_g": round(g, 4),
+            "std_g": [round(float(x), 5) for x in a.std(0)], "up_camera": [round(float(x), 5) for x in up]}
+    return up / np.linalg.norm(up), info
+
+
+def iter_rgb_frames(root: str | Path, frame_numbers, size: tuple[int, int] | None = None):
+    """Yield (frame_number, BGR image) for the requested rgb.mp4 frame numbers, in increasing order.
+
+    Decodes SEQUENTIALLY (grab every frame, retrieve only the wanted ones): random seeking in the iPad's HEVC
+    files is unreliable in OpenCV. Video frame n is the frame with `frame` == n in odometry.csv / depth/NNNNNN.png
+    (checked on the first real export: 6707 video packets at constant 60 fps = 6707 odometry rows = 6707 depth
+    files). Frames the decoder cannot return are simply not yielded; callers must treat them as missing."""
+    want = sorted({int(f) for f in frame_numbers})
+    if not want:
+        return
+    cap = cv2.VideoCapture(str(Path(root) / "rgb.mp4"))
+    if not cap.isOpened():
+        raise StrayFormatError("cannot open rgb.mp4")
+    try:
+        n, k = 0, 0
+        while k < len(want):
+            if not cap.grab():
+                break
+            if n == want[k]:
+                ok, img = cap.retrieve()
+                if ok and img is not None:
+                    yield n, (cv2.resize(img, size, interpolation=cv2.INTER_AREA) if size else img)
+                k += 1
+            n += 1
+    finally:
+        cap.release()
+
+
 def load_stray(root: str | Path, *, target_fps: float = 6.0) -> StrayRecording:
     """Load a Stray Scanner recording folder, keeping about `target_fps` frames per second (by timestamp)."""
     root = Path(root)

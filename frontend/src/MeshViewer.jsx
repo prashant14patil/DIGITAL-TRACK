@@ -13,10 +13,10 @@ export default function MeshViewer({ url, height = 460 }) {
     const el = mount.current;
     if (!el) return undefined;
     const width = el.clientWidth || 600;
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true }); // background comes from CSS (.viewer)
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.setSize(width, height);
-    renderer.setClearColor(0xf4f5f7);
+    renderer.setClearColor(0x000000, 0);
     el.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
@@ -49,7 +49,9 @@ export default function MeshViewer({ url, height = 460 }) {
         controls.target.copy(centre);
         camera.position.set(centre.x, centre.y + size.y * 0.1, centre.z + size.y * 2.4);
         controls.update();
-        const grid = new THREE.GridHelper(size.y * 1.2, 12, 0xbfc4cc, 0xdde0e5);
+        const grid = new THREE.GridHelper(size.y * 1.2, 12, 0x8a929c, 0x8a929c);
+        grid.material.transparent = true;
+        grid.material.opacity = 0.35;
         grid.position.y = box.min.y;
         scene.add(grid);
         setState("ready");
@@ -86,7 +88,7 @@ export default function MeshViewer({ url, height = 460 }) {
       <div ref={mount} className="viewer-canvas" style={{ height }} />
       {state === "loading" && <div className="viewer-msg">Loading mesh…</div>}
       {state === "error" && <div className="viewer-msg bad">Could not load the mesh.</div>}
-      {state === "ready" && <div className="viewer-hint">drag to rotate · scroll to zoom · right-drag to pan</div>}
+      {state === "ready" && <div className="viewer-hint">Drag to rotate · scroll to zoom · right-drag to pan</div>}
     </div>
   );
 }

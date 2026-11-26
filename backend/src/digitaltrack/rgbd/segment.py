@@ -89,6 +89,37 @@ def estimate_floor(views: list[RGBDView], params: SegmentParams, *, source: str,
     return FloorEstimate(plane, tilt, source)
 
 
+def floor_with_vertical(floor: FloorEstimate, views: list[RGBDView], up_camera, params: SegmentParams,
+                        max_points: int = 60000, seed: int = 0) -> tuple[FloorEstimate, dict]:
+    """Replace the fitted floor NORMAL by a measured vertical (e.g. IMU gravity) and re-estimate only the floor
+    HEIGHT along it: median of up . p over the points within `floor_fit_threshold_m` of the fitted plane.
+
+    Reason: in portrait framing the floor is a thin strip at the image edge, so its fitted normal is weakly
+    constrained (first real export: 1.5 deg from IMU gravity, while the person's rotation axis matched gravity
+    within 0.7 deg). Returns the new estimate and a log of both normals."""
+    up = np.asarray(up_camera, float)
+    up = up / np.linalg.norm(up)
+    rng = np.random.default_rng(seed)
+    pts = np.concatenate([backproject(v, valid_mask(v, min_confidence=params.min_confidence,
+                                                     depth_min_m=params.depth_min_m, depth_max_m=params.depth_max_m))
+                          for v in views])
+    if len(pts) > max_points:
+        pts = pts[rng.choice(len(pts), max_points, replace=False)]
+    on = np.abs(floor.plane.signed_distance(pts)) < params.floor_fit_threshold_m
+    if on.sum() < 100:
+        raise SegmentationError("too few floor points to place the floor along the measured vertical")
+    h = pts[on] @ up
+    level = float(np.median(h))
+    n_fit = np.asarray(floor.plane.normal, float)
+    angle = float(np.degrees(np.arccos(np.clip(abs(n_fit @ up), -1, 1))))
+    plane = FloorPlane(tuple(float(x) for x in up), -level, floor.plane.n_points, int(on.sum()),
+                       float(np.sqrt(np.mean((h - level) ** 2))))
+    log = {"vertical_source": "measured (IMU gravity)", "fitted_normal_camera": n_fit.tolist(),
+           "vertical_camera": up.tolist(), "angle_fitted_vs_vertical_deg": angle,
+           "floor_points": int(on.sum()), "floor_rms_along_vertical_m": plane.inlier_rms_m}
+    return FloorEstimate(plane, angle, floor.source + " + measured vertical"), log
+
+
 def background_plate(views: list[RGBDView], params: SegmentParams) -> np.ndarray:
     """Per-pixel median depth of empty-scene views (0 where fewer than half the views are valid)."""
     stack = []
@@ -157,6 +188,55 @@ def segment_subject(view: RGBDView, floor_from_cam: np.ndarray, params: SegmentP
     mask = np.zeros_like(m)
     mask[v_idx[sel], u_idx[sel]] = True
     return SubjectCloud(view.index, mask, pts[sel], stats)
+
+
+def segment_subject_plate(view: RGBDView, floor_from_cam: np.ndarray, background: np.ndarray,
+                          params: SegmentParams, *, min_component_fraction: float = 0.02,
+                          join_radius_m: float = 0.6) -> SubjectCloud:
+    """Subject segmentation when an empty-scene background plate EXISTS (image-space connected components).
+
+    The DBSCAN path (`segment_subject`) keeps one 3-D cluster; on the first real recording the person often fell
+    apart into torso / legs / arm clusters and only one survived (masks of ~1500 instead of ~4500 pixels). With a
+    plate, foreground is well defined, so: foreground (closer than the plate by `background_margin_m`) ->
+    floor band / height limits -> 8-connected components in the image -> keep the largest component and every
+    component of at least `min_component_fraction` of it whose floor position is within `join_radius_m`
+    (horizontal) of it. Small specks (plate noise) are dropped, nothing is added.
+    """
+    import cv2
+
+    if background.shape != view.depth_m.shape:
+        raise SegmentationError("background plate size differs from the view")
+    m = valid_mask(view, min_confidence=params.min_confidence, depth_min_m=params.depth_min_m,
+                   depth_max_m=params.depth_max_m)
+    stats = {"pixels_valid": int(m.sum())}
+    m &= (background <= 0) | (view.depth_m < background - params.background_margin_m)
+    stats["pixels_after_background"] = int(m.sum())
+    v_idx, u_idx = np.nonzero(m)
+    pts = transform_points(floor_from_cam, backproject(view, m))
+    keep = (pts[:, 2] > params.floor_band_m) & (pts[:, 2] < params.max_height_m)
+    if params.roi_radius_m is not None:
+        keep &= np.hypot(pts[:, 0], pts[:, 1]) < params.roi_radius_m
+    fg = np.zeros_like(m)
+    fg[v_idx[keep], u_idx[keep]] = True
+    n, lab, cc_stats, _ = cv2.connectedComponentsWithStats(fg.astype(np.uint8), connectivity=8)
+    if n <= 1:
+        raise SegmentationError(f"view {view.index}: no foreground in front of the background plate")
+    pts_img = np.zeros(m.shape + (3,), np.float64)
+    pts_img[v_idx[keep], u_idx[keep]] = pts[keep]
+    areas = cc_stats[1:, cv2.CC_STAT_AREA]
+    big = 1 + int(np.argmax(areas))
+    c_big = pts_img[lab == big][:, :2].mean(0)
+    sel = [big]
+    for c in range(1, n):
+        if c != big and areas[c - 1] >= min_component_fraction * areas[big - 1]:
+            if np.hypot(*(pts_img[lab == c][:, :2].mean(0) - c_big)) < join_radius_m:
+                sel.append(c)
+    mask = np.isin(lab, sel)
+    stats.update({"components": int(n - 1), "components_joined": len(sel), "subject_points": int(mask.sum()),
+                  "method": "background plate + image connected components"})
+    if mask.sum() < params.min_subject_points:
+        raise SegmentationError(f"view {view.index}: subject has only {int(mask.sum())} pixels")
+    return SubjectCloud(view.index, mask, pts_img[mask], stats)
 
 
 def make_floor_frame(floor: FloorEstimate, origin_hint_cam: np.ndarray) -> np.ndarray:

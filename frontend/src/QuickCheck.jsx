@@ -18,7 +18,7 @@ export default function QuickCheck({ upload }) {
 
   return (
     <div className="quickcheck">
-      <div className="row">
+      <div className="action-row">
         <button onClick={run} disabled={busy}>{busy ? "Checking… (about 15 s)" : "Check recording"}</button>
         <span className="muted">Fast check (no mesh): pauses, iPad still, floor visible, full turn completed. Run it
           before leaving the room so you can re-record straight away.</span>

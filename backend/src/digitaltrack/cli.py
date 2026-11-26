@@ -1,5 +1,5 @@
 """Command line: dt validate | synth | reconstruct | migrate | serve | inspect-upload | reconstruct-rgbd |
-demo-selfrotation | view-rgbd"""
+demo-selfrotation | view-rgbd | reconstruct-stray"""
 
 from __future__ import annotations
 
@@ -188,6 +188,63 @@ def _cmd_print_sheets(args) -> int:
     return 0
 
 
+def _cmd_validation_report(args) -> int:
+    from pathlib import Path
+
+    from .validation.study import run_study
+
+    summary = run_study(json.loads(Path(args.manifest).read_text(encoding="utf-8")), args.out)
+    print(Path(args.out) / "validation_report.md")
+    return 0 if summary["measurements"] else 1
+
+
+def _cmd_reconstruct_stray_tracked(args) -> int:
+    from dataclasses import replace
+
+    from .rgbd.stray import StrayFormatError
+    from .rgbd.tracked import TrackedParams, run_tracked
+
+    p = replace(TrackedParams(), frame_step=args.frame_step, split_check=not args.no_split_check)
+    try:
+        res = run_tracked(args.recording, args.background, args.out, params=p,
+                          source={"recording": str(args.recording), "background": str(args.background)},
+                          progress=lambda s, f: print(f"  {s} {f:4.0%}", flush=True))
+    except (StrayFormatError, FileExistsError, RuntimeError) as e:
+        print(f"cannot reconstruct: {e}")
+        return 1
+    q = res.quality
+    print(f"status {res.status}; mesh {q['mesh']['vertices']} vertices, {q['mesh']['holes']} holes; "
+          f"depth residual p50 {q['depth_residual_m']['p50'] * 1000:.1f} mm")
+    print(f"report: {res.run_dir / 'report.html'}")
+    return 0 if res.status != "fail" else 3
+
+
+def _cmd_reconstruct_stray(args) -> int:
+    from pathlib import Path
+
+    from .rgbd.stray import StrayFormatError
+    from .rgbd.textured.compare_rgb import compare_with_rgb_only, run_rgb_only_baseline
+    from .rgbd.textured.pipeline import reconstruct
+
+    try:
+        res = reconstruct(args.recording, args.out, progress=lambda s: print(f"  {s}", flush=True))
+    except (StrayFormatError, FileExistsError) as e:
+        print(f"cannot reconstruct: {e}")
+        return 1
+    print(f"status {res.status}: {res.report.get('status_note')}\nreport: {res.run_dir / 'report.html'}")
+    other = args.rgb_only_run
+    if res.mesh is not None and args.run_rgb_only:
+        print("running the existing RGB-only pipeline (slow)")
+        try:
+            other = run_rgb_only_baseline(args.recording, Path(res.run_dir) / "rgb_only_baseline")
+        except (ValueError, RuntimeError) as e:
+            print(f"RGB-only pipeline failed on this recording: {e}")
+    if res.mesh is not None and other:
+        compare_with_rgb_only(res.run_dir, other)
+        print(f"comparison: {res.run_dir / 'comparison_rgb_only.json'}")
+    return 0 if res.status != "fail" else 3
+
+
 def _cmd_view_rgbd(args) -> int:
     from pathlib import Path
 
@@ -279,6 +336,29 @@ def main(argv: list[str] | None = None) -> int:
     vr.add_argument("--points", action="store_true", help="also show every view's points, one colour per view")
     vr.add_argument("--coverage", action="store_true", help="show the mesh coloured by observation count")
     vr.set_defaults(fn=_cmd_view_rgbd)
+
+    st = sub.add_parser("reconstruct-stray", help="texture-guided RGB-D reconstruction of an unpacked Stray Scanner "
+                                                  "recording, with quality report")
+    st.add_argument("recording", help="folder with rgb.mp4, depth/, confidence/, odometry.csv")
+    st.add_argument("--out", default="data/real/processing", help="output root (git-ignored)")
+    st.add_argument("--run-rgb-only", action="store_true", help="also run the RGB-only pipeline and compare")
+    st.add_argument("--rgb-only-run", help="compare with an existing RGB-only run directory instead")
+    st.set_defaults(fn=_cmd_reconstruct_stray)
+
+    sk = sub.add_parser("reconstruct-stray-tracked",
+                        help="RGB-D body mesh from a Stray Scanner recording + empty-scene recording (fixed iPad, "
+                             "subject turning): feature pose graph, filtered two-pass TSDF, PLY/OBJ/GLB, quality report")
+    sk.add_argument("recording", help="unpacked Stray Scanner folder of the subject (rgb.mp4, depth/, confidence/, ...)")
+    sk.add_argument("--background", required=True, help="unpacked Stray Scanner folder of the empty scene, same rig")
+    sk.add_argument("--out", default="data/real/processing", help="output root (git-ignored)")
+    sk.add_argument("--frame-step", type=int, default=6, help="use every n-th recorded frame (default 6: 60 -> 10 fps)")
+    sk.add_argument("--no-split-check", action="store_true", help="skip the split-half repeatability check")
+    sk.set_defaults(fn=_cmd_reconstruct_stray_tracked)
+
+    vr2 = sub.add_parser("validation-report", help="accuracy / repeatability report from several scans + tape values")
+    vr2.add_argument("manifest", help="JSON manifest (see digitaltrack/validation/study.py)")
+    vr2.add_argument("--out", required=True)
+    vr2.set_defaults(fn=_cmd_validation_report)
 
     args = p.parse_args(argv)
     return args.fn(args)

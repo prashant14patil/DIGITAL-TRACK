@@ -56,6 +56,7 @@ export const api = {
   putTarget: (t) => send("PUT", "/api/readings/target", t),
   deleteTarget: () => send("DELETE", "/api/readings/target"),
   job: (id) => fetch(`/api/jobs/${id}`).then(json),
+  deleteJob: (id) => fetch(`/api/jobs/${id}`, { method: "DELETE" }).then(json),
   jobFileUrl: (id, name) => `/api/jobs/${id}/files/${name}`,
 
   // XHR (not fetch) so upload progress is observable.
@@ -112,3 +113,6 @@ export function formatBytes(n) {
   while (n >= 1024 && i < u.length - 1) (n /= 1024), i++;
   return `${n.toFixed(i ? 1 : 0)} ${u[i]}`;
 }
+
+// "2026-11-25T12:25:59Z" -> "2026-11-25 12:25:59" (the table header says UTC).
+export const formatUtc = (s) => (s ? s.replace("T", " ").replace("Z", "") : "–");

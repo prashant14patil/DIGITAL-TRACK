@@ -172,3 +172,30 @@ def test_completed_jobs_get_display_regions(tmp_path):
     (Path(job["run_dir"]) / "mesh_regions.glb").unlink()
     assert c.app.state.jobs.backfill_regions() == 1
     assert c.get(f"/api/jobs/{job['id']}/files/regions.json").status_code == 200
+
+
+def test_delete_job_removes_derived_outputs_and_keeps_upload(tmp_path):
+    c = _client(tmp_path)
+    uid = _finalized_upload(c, tmp_path, {"a.mov": _video(tmp_path / "v.mov")})
+    job = c.post(f"/api/uploads/{uid}/process").json()
+    session = tmp_path / "sessions" / job["session_id"]
+    raw = tmp_path / "uploads" / uid / "export" / "a.mov"
+    raw_bytes = raw.read_bytes()
+    assert session.is_dir() and (tmp_path / "jobs" / job["id"]).is_dir()
+    assert c.delete(f"/api/jobs/{job['id']}").status_code == 204
+    assert not session.exists() and not (tmp_path / "jobs" / job["id"]).exists()
+    assert c.get(f"/api/jobs/{job['id']}").status_code == 404
+    assert c.get("/api/jobs").json() == []
+    assert raw.read_bytes() == raw_bytes and c.get(f"/api/uploads/{uid}").json()["status"] == "complete"
+    assert c.delete(f"/api/jobs/{job['id']}").status_code == 404
+    assert c.post(f"/api/uploads/{uid}/process").json()["status"] == "complete"  # can be made again
+
+
+def test_running_job_cannot_be_deleted(tmp_path):
+    c = _client(tmp_path)
+    uid = _finalized_upload(c, tmp_path, {"a.mov": _video(tmp_path / "v.mov")})
+    job = c.post(f"/api/uploads/{uid}/process").json()
+    jobs: JobManager = c.app.state.jobs
+    jobs._update(job["id"], status="running")
+    r = c.delete(f"/api/jobs/{job['id']}")
+    assert r.status_code == 409 and "still being processed" in r.json()["detail"]

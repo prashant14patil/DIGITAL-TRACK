@@ -4,8 +4,8 @@ For the avatar view only: regions colour the mesh and anchor the callout cards. 
 Heuristic, geometry-only, for an upright person in an A-pose, mesh Z-up (feet at the bottom):
   * neck   = narrowest central horizontal section between 75 % and 93 % of the height -> above it: head
   * arms   = vertices outside the central (trunk) cluster of each horizontal section between the crotch (at least
-             35 % of the height) and the neck, plus shoulder-level vertices further out than 1.15 x the trunk
-             half-width. Hands hanging below the crotch are therefore labelled as legs.
+             35 % of the height) and the neck, plus vertices above 55 % of the height further out than 1.15 x
+             the trunk half-width (a closed display surface joins arms to the trunk without a gap). Hands hanging below the crotch are therefore labelled as legs.
   * crotch = highest level (25-55 % of height) where the central section splits into two legs; if the legs are
              merged (visual hull) a fixed 47 % of height is used and reported as an anthropometric default
   * legs   = below the crotch, split at the body centre line; trunk = the rest between crotch and neck.
@@ -43,7 +43,10 @@ def _central(intervals, xc):
     return min(intervals, key=lambda iv: min(abs(iv[0] - xc), abs(iv[1] - xc)))
 
 
-def segment_regions(vertices: np.ndarray, *, slice_frac: float = 0.01, gap_frac: float = 0.02) -> tuple[np.ndarray, dict]:
+def segment_regions(vertices: np.ndarray, *, slice_frac: float = 0.01, gap_frac: float = 0.02,
+                    levels_z: dict | None = None) -> tuple[np.ndarray, dict]:
+    """`levels_z`: optional measured landmark heights in the mesh's z units ({"neck_z", "crotch_z"}, e.g. from
+    measurement/body.py). When given they replace the heuristic levels (recorded in the info)."""
     v = np.asarray(vertices, float)
     z0, z1 = float(v[:, 2].min()), float(v[:, 2].max())
     h = z1 - z0
@@ -78,9 +81,22 @@ def segment_regions(vertices: np.ndarray, *, slice_frac: float = 0.01, gap_frac:
             break
     if crotch is None:
         crotch, crotch_method = 0.47, "anthropometric default (legs not separated in this mesh)"
+    if levels_z:
+        if levels_z.get("neck_z") is not None:
+            neck = (float(levels_z["neck_z"]) - z0) / h
+        if levels_z.get("crotch_z") is not None:
+            crotch, crotch_method = (float(levels_z["crotch_z"]) - z0) / h, "body landmarks (measurement/body.py)"
 
     ref = [central[b][1] - central[b][0] for b in central if 0.55 <= b <= 0.68]
     torso_half = 0.5 * float(np.median(ref)) if ref else 0.12 * h
+    arm_sep = None
+    if levels_z and levels_z.get("arm_separation_z") is not None:
+        # measured arm separation: below it arms are separate slice parts; above it (shoulders) the boundary is the
+        # torso half-width measured just below the separation (stops the trunk colour cutting across the arms)
+        arm_sep = (float(levels_z["arm_separation_z"]) - z0) / h
+        ref = [central[b][1] - central[b][0] for b in central if arm_sep - 0.05 <= b <= arm_sep]
+        if ref:
+            torso_half = 0.5 * float(np.median(ref))
 
     labels = np.full(len(v), ID["trunk"], np.uint8)
     labels[zn > neck] = ID["head"]
@@ -88,8 +104,15 @@ def segment_regions(vertices: np.ndarray, *, slice_frac: float = 0.01, gap_frac:
     for i in np.nonzero(arm_zone)[0]:
         b = round(np.floor(zn[i] / slice_frac) * slice_frac, 4)
         lo, hi = central.get(b, (xc - torso_half, xc + torso_half))
-        outside = v[i, 0] < lo - 1e-9 or v[i, 0] > hi + 1e-9
-        shoulder = zn[i] > 0.68 and abs(v[i, 0] - xc) > 1.15 * torso_half
+        if arm_sep is not None:
+            if zn[i] <= arm_sep:
+                outside, shoulder = v[i, 0] < lo - 1e-9 or v[i, 0] > hi + 1e-9, False
+            else:
+                outside, shoulder = False, abs(v[i, 0] - xc) > torso_half
+        else:
+            outside = v[i, 0] < lo - 1e-9 or v[i, 0] > hi + 1e-9
+            # beyond the torso width above the hips: arm even where a dense (closed) surface joins it to the trunk
+            shoulder = zn[i] > 0.55 and abs(v[i, 0] - xc) > 1.15 * torso_half
         if outside or shoulder:
             labels[i] = ID["left_arm"] if v[i, 0] > xc else ID["right_arm"]
     legs = (zn < crotch) & ~np.isin(labels, [ID["left_arm"], ID["right_arm"]])
@@ -108,7 +131,8 @@ def segment_regions(vertices: np.ndarray, *, slice_frac: float = 0.01, gap_frac:
         anchors[name] = [float(c) for c in pts.mean(axis=0)]
     info = {
         "algorithm": ALGORITHM, "status": "provisional",
-        "levels_height_fraction": {"neck": round(neck, 3), "crotch": round(float(crotch), 3)},
+        "levels_height_fraction": {"neck": round(neck, 3), "crotch": round(float(crotch), 3),
+                                   **({"arm_separation": round(arm_sep, 3)} if arm_sep is not None else {})},
         "crotch_method": crotch_method, "centre_x": xc,
         "left_right": "+X is the subject's left (subject faces -Y at turn angle 0); relies on the estimated turn "
                       "direction",
@@ -120,16 +144,22 @@ def segment_regions(vertices: np.ndarray, *, slice_frac: float = 0.01, gap_frac:
     return labels, info
 
 
-def write_region_files(run_dir: str | Path, mesh_name: str = "mesh_height_normalised.ply") -> dict:
-    """Write mesh_regions.glb (region id in vertex colour) and regions.json next to the run's mesh."""
+def write_region_files(run_dir: str | Path, mesh_name: str = "mesh_height_normalised.ply", *,
+                       levels_z: dict | None = None, estimated: np.ndarray | None = None) -> dict:
+    """Write mesh_regions.glb (region id in the red vertex channel; green = 255 for ESTIMATED display vertices,
+    i.e. gaps bridged by a surface fit) and regions.json next to the run's mesh."""
     import trimesh
 
     run = Path(run_dir)
     mesh = o3d.io.read_triangle_mesh(str(run / mesh_name))
     verts, faces = np.asarray(mesh.vertices), np.asarray(mesh.triangles)
-    labels, info = segment_regions(verts)
+    labels, info = segment_regions(verts, levels_z=levels_z)
     rgba = np.zeros((len(labels), 4), np.uint8)
     rgba[:, 0] = labels * COLOUR_STEP
+    if estimated is not None and len(estimated) == len(labels):
+        rgba[:, 1] = np.where(estimated, 255, 0)
+        info["estimated_vertex_fraction"] = float(np.mean(estimated))
+        info["estimated_encoding"] = "vertex green channel 255 = estimated (gap bridged for display, not measured)"
     rgba[:, 3] = 255
     # trimesh, not Open3D: Open3D 0.20 writes a corrupt .glb when vertex colours are present
     tm = trimesh.Trimesh(vertices=verts, faces=faces, vertex_colors=rgba, process=False)

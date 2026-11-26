@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { api } from "./api.js";
+import { api, formatUtc } from "./api.js";
+import { Chevron, SectionHead } from "./ui.jsx";
 import MeshViewer from "./MeshViewer.jsx";
 import ScanReview from "./ScanReview.jsx";
 import DepthResult from "./DepthResult.jsx";
@@ -78,22 +79,21 @@ export default function MeshJobs({ refreshKey, focusJobId }) {
 
   const open = jobs.find((j) => j.id === openId) || null;
   return (
-    <section className="card wide">
-      <h2>
-        <span className="step">4</span>3D meshes
-        <button className="link right" onClick={load}>refresh</button>
-      </h2>
+    <section className="card">
+      <SectionHead title="3D meshes" desc="Processing jobs. Running jobs update automatically."
+        actions={<button className="link" onClick={load}>Refresh</button>} />
       {jobs.length === 0 ? (
-        <p className="muted">No mesh yet. Open a finalized upload that contains a video and click "Create 3D mesh".</p>
+        <p className="empty">No mesh yet. Open a finished upload above and choose "Create 3D mesh".</p>
       ) : (
+        <div className="table-wrap">
         <table className="uploads">
           <thead>
-            <tr><th>Started (UTC)</th><th>Upload</th><th>Video</th><th>Status</th><th>Progress</th></tr>
+            <tr><th>Started (UTC)</th><th>Upload</th><th>File</th><th>Status</th><th>Progress</th><th /></tr>
           </thead>
           <tbody>
             {jobs.map((j) => (
               <tr key={j.id} className={openId === j.id ? "sel" : ""} onClick={() => setOpenId(j.id)}>
-                <td>{j.created_utc.replace("T", " ").replace("Z", "")}</td>
+                <td className="ts">{formatUtc(j.created_utc)}</td>
                 <td>{j.label || j.upload_id}</td>
                 <td className="path">{j.file}</td>
                 <td><span className={`pill ${j.status === "complete" ? "ok" : j.status === "failed" ? "bad" : "warn"}`}>{j.status}</span></td>
@@ -101,28 +101,51 @@ export default function MeshJobs({ refreshKey, focusJobId }) {
                   {j.status === "running" || j.status === "queued" ? (
                     <div className="mini"><div className="bar"><div style={{ width: `${Math.round(100 * j.progress)}%` }} /></div>
                       <small>{j.stage} · {Math.round(100 * j.progress)}%</small></div>
-                  ) : j.status === "failed" ? <small className="bad">failed</small> : <small>done</small>}
+                  ) : j.status === "failed" ? <small className="muted">–</small> : <small className="muted">done</small>}
                 </td>
+                <td className="go"><Chevron /></td>
               </tr>
             ))}
           </tbody>
         </table>
+        </div>
       )}
-      {open && <JobResult job={open} onClose={() => setOpenId(null)} />}
+      {open && <JobResult job={open} onClose={() => setOpenId(null)}
+        onDeleted={() => { setOpenId(null); load(); }} />}
     </section>
   );
 }
 
-function JobResult({ job, onClose }) {
+function JobResult({ job, onClose, onDeleted }) {
   const file = (name) => api.jobFileUrl(job.id, name);
   const r = job.result;
+  const [delErr, setDelErr] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+  const busy = job.status === "queued" || job.status === "running";
+  async function remove() {
+    if (!window.confirm("Remove this mesh and its results? The uploaded recording is kept, so you can create the mesh again.")) return;
+    setDeleting(true);
+    setDelErr(null);
+    try {
+      await api.deleteJob(job.id);
+      onDeleted();
+    } catch (e) {
+      setDelErr(e.message);
+      setDeleting(false);
+    }
+  }
   return (
     <div className="details">
       <div className="dhead">
         <strong>{job.label || job.upload_id} · {job.file}</strong>
         <span className="mono">{job.id}</span>
-        <button className="link right" onClick={onClose}>close</button>
+        <button className="link right" onClick={onClose}>Close</button>
+        <button className="link danger" disabled={busy || deleting} onClick={remove}
+          title={busy ? "Wait until processing finishes" : "Delete this mesh (the upload is kept)"}>
+          {deleting ? "Removing…" : "Remove mesh"}
+        </button>
       </div>
+      {delErr && <div className="errors">{delErr}</div>}
       {job.status === "failed" && <div className="banner bad">Processing failed: {job.error}</div>}
       {(job.status === "queued" || job.status === "running") && (
         <p className="muted">Working: {job.stage} ({Math.round(100 * job.progress)}%). This page updates automatically.</p>
@@ -137,8 +160,8 @@ function JobResult({ job, onClose }) {
           </div>
           <MeshViewer url={file("mesh.glb")} />
           <ScanReview job={job} />
-          <div className="row">
-            <a className="link" href={file("mesh.glb")} download={`${job.id}_mesh.glb`}>download mesh (.glb)</a>
+          <div className="links">
+            <a className="link" href={file("mesh.glb")} download={`${job.id}_mesh.glb`}>Download mesh (.glb)</a>
             <a className="link" href={file("report.json")} target="_blank" rel="noreferrer">report.json</a>
           </div>
           <dl>
@@ -154,13 +177,13 @@ function JobResult({ job, onClose }) {
           {r.files?.includes("preview_silhouettes.png") && (
             <>
               <h3>Person segmentation (sample frames)</h3>
-              <img className="preview" src={file("preview_silhouettes.png")} alt="silhouettes" />
+              <img className="preview" src={file("preview_silhouettes.png")} alt="Person segmentation on sample frames" />
             </>
           )}
           {r.files?.includes("preview_angle_estimation.png") && (
             <>
               <h3>Turn-angle estimation</h3>
-              <img className="preview" src={file("preview_angle_estimation.png")} alt="angle estimation" />
+              <img className="preview" src={file("preview_angle_estimation.png")} alt="Turn-angle estimation" />
             </>
           )}
         </>

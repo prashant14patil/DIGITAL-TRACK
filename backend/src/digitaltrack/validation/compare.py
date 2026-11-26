@@ -113,6 +113,11 @@ def compare_run(run_dir: str | Path, metadata: dict, *, write: bool = True) -> d
     if dims:
         out["box_from_mesh_m"] = dims
 
+    # runs of the tracked RGB-D pipeline carry landmark-based body measurements (torso part only, arms excluded)
+    bp = run_dir / "body_measurements.json"
+    body = json.loads(bp.read_text(encoding="utf-8")) if bp.is_file() and not is_box else None
+    if body is not None:
+        out["body_definitions"] = body.get("definition_version")
     for m in tape:
         k = _kind(m["name"])
         if k == "height":
@@ -126,6 +131,8 @@ def compare_run(run_dir: str | Path, metadata: dict, *, write: bool = True) -> d
             out["rows"].append(_row(m, k, None if val is None else val * 1000,
                                     base_status if val is not None else "unavailable",
                                     base_why if val is not None else "too few mesh points at mid-height"))
+        elif k == "circumference" and body is not None:
+            out["rows"].append(_body_row(m, k, mesh, body, base_status, base_why))
         elif k == "circumference":
             lvl = m.get("level_mm")
             if not lvl:
@@ -150,6 +157,45 @@ def compare_run(run_dir: str | Path, metadata: dict, *, write: bool = True) -> d
             out["rows"].append(_row(m, k, None, "unavailable", "name not recognised (use length, width, height, "
                                     "or a body part such as chest, waist, hip, thigh)"))
     return _finish(out, run_dir, write)
+
+
+BODY_NAMES = {"chest": "chest_circumference", "bust": "chest_circumference", "waist": "waist_circumference",
+              "hip": "hip_circumference"}
+
+
+def _body_row(m: dict, k: str, mesh, body: dict, base_status: str, base_why: str) -> dict:
+    """Circumference from the body-measurement definitions: at the tape level if given (torso part only), else the
+    landmark-based named value. Status never exceeds the body file's own status (unvalidated => unreliable)."""
+    from ..measurement.body import torso_circumference_at
+
+    name = m["name"].lower()
+    limb = any(h in name for h in LIMB)
+    body_status = body.get("status", "unreliable")
+    status = base_status if body_status == "measured" else "unreliable"
+    why = base_why if status == base_status else "body-measurement definitions are not validated yet"
+    lvl = m.get("level_mm")
+    if lvl and not limb:
+        c = torso_circumference_at(mesh, float(lvl) / 1000)
+        if c["value_m"] is None:
+            return _row(m, k, None, "unavailable", c["reason"], {"level_mm": lvl, "method": "torso part at tape level"})
+        return _row(m, k, c["value_m"] * 1000, status, why, {"level_mm": lvl, "method": "torso part at tape level",
+                                                            "convex_hull_mm": round(c["convex_hull_m"] * 1000, 1)})
+    key = next((v for t, v in BODY_NAMES.items() if t in name), None)
+    if key is None and "thigh" in name:
+        vals = [x for x in body["measurements"] if x["name"].startswith("thigh_circumference_side") and x["value"]]
+        if vals:  # left/right are not assigned in the mesh: compare with the mean of both thighs
+            v = float(np.mean([x["value"] for x in vals]))
+            return _row(m, k, v * 1000, "unreliable", "mean of both thighs (left/right not assigned); " + why,
+                        {"method": "landmark thigh level"})
+    if key is None:
+        return _row(m, k, None, "unavailable", "no body definition for this name; give the tape level to compare "
+                    "the torso at that height")
+    x = next((x for x in body["measurements"] if x["name"] == key), None)
+    if not x or x["value"] is None:
+        return _row(m, k, None, "unavailable", "; ".join((x or {}).get("reasons", ["not computed"])))
+    return _row(m, k, x["value"] * 1000, status, why + "; level from landmarks (no tape level given)",
+                {"level_mm": None if x.get("level_z") is None else round(x["level_z"] * 1000),
+                 "method": f"{key} ({body.get('definition_version')})"})
 
 
 def _finish(out: dict, run_dir: Path, write: bool) -> dict:

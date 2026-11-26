@@ -59,11 +59,12 @@ export default function ReadingsPanel({ data, onChange }) {
             ))}
           </div>
         )}
-        <button type="submit" disabled={busy}>Add reading</button>
+        <button type="submit" className="primary" disabled={busy}>Add reading</button>
       </form>
       {err && <p className="bad">{err}</p>}
 
       {data.readings.length > 0 && (
+        <div className="table-wrap">
         <table className="rtable">
           <thead><tr><th>Date</th><th>Weight</th><th>Body fat</th><th>Muscle</th><th>Segments</th><th /></tr></thead>
           <tbody>
@@ -71,11 +72,12 @@ export default function ReadingsPanel({ data, onChange }) {
               <tr key={r.id}>
                 <td>{formatDate(r.date)}</td><td>{r.weight_kg} kg</td><td>{r.body_fat_pct} %</td><td>{r.muscle_kg} kg</td>
                 <td>{r.segments ? "yes" : "–"}</td>
-                <td><button className="linkish" disabled={busy} onClick={() => run(() => api.deleteReading(r.id))}>delete</button></td>
+                <td><button className="linkish" disabled={busy} onClick={() => run(() => api.deleteReading(r.id))}>Delete</button></td>
               </tr>
             ))}
           </tbody>
         </table>
+        </div>
       )}
 
       <details>
@@ -91,7 +93,7 @@ export default function ReadingsPanel({ data, onChange }) {
           ))}
           <button disabled={busy} onClick={() => run(() => api.putTarget({ weight_kg: num(tg.weight_kg || data.target?.weight_kg),
             body_fat_pct: num(tg.body_fat_pct || data.target?.body_fat_pct), muscle_kg: num(tg.muscle_kg || data.target?.muscle_kg) }))}>Save target</button>
-          {data.target && <button className="linkish" onClick={() => run(() => api.deleteTarget())}>remove target</button>}
+          {data.target && <button className="linkish" onClick={() => run(() => api.deleteTarget())}>Remove target</button>}
         </div>
       </details>
 
