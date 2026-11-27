@@ -111,13 +111,13 @@ export default function AvatarView() {
 
       {demo ? (
         <div className="banner warn">
-          <strong>DEMO values</strong>, <b>not measurements of this person</b>. The body shape is an experimental scan
-          and the body-part split is approximate.
+          <strong>DEMO values</strong>, <b>not measurements of this person</b>. The body is a template fitted to the
+          person's scan (display only) and the body-part split is approximate.
         </div>
       ) : (
         <div className="banner">
-          Values are shown <b>as you typed them</b>, not from the scan. The body shape is an experimental scan and the
-          body-part split is approximate.
+          Values are shown <b>as you typed them</b>, not from the scan. The body is a template fitted to the person's
+          scan (display only) and the body-part split is approximate.
         </div>
       )}
 
@@ -152,8 +152,11 @@ export default function AvatarView() {
           {job._depth && (
             <div className={`banner ${job.run_status === "pass" ? "" : "warn"}`}>
               <strong>LiDAR scan · status {job.run_status} · display only, not measured.</strong>{" "}
+              {regions?.status?.startsWith("template")
+                ? "Template body fitted to this scan: height, arm pose and overall girth (from the chest) follow the scan; waist/hip shape, head, hands and feet are template. "
+                : ""}
               {job.run_status !== "pass" && "The scan did not pass every check, so its shape may be distorted. "}
-              The body-part split is approximate and no size is read from it.
+              No size is read from the avatar: measurements come from the raw scan on the Capture & meshes page.
             </div>
           )}
           {regions ? (

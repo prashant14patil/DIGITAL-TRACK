@@ -84,6 +84,16 @@ Mesh finishing (2026-11-27):
 * Web: the result page shows the refined mesh by default (satin, shadows, pale = estimated) with a toggle to the raw
   measuring mesh; the avatar uses the same refined mesh.
 
+Body avatar (2026-11-27, user decision: template allowed, numbers only from the raw scan): `experimental/template_fit.py`
+fits the CC0 MakeHuman base mesh (`experimental/assets/`) to the scan's display surface: height map to the scan's
+landmarks, arms rotated in the frontal plane to the scan's arm angle, torso girth scaled by ONE factor from the scan's
+chest circumference (user decision 2026-11-27: with loose clothing the waist/hip girth is the shirt's volume; mode
+"profile" = girth at every height, for tight clothing). Base build: young male + 50 % max-muscle (CC0 MakeHuman
+targets). No point-pulling: head, hands, feet and the waist/hip shape are template (head/hands/feet shown pale).
+Torso deviation from the clothed scan is reported (first real scan: 28 mm RMS, mostly the shirt); refused only when
+gross (> 50 mm RMS / 100 mm P95, or no person landmarks). Earlier attempts and why they were dropped: pulling every
+template point to the scan (crumpled face, ring hands, kinked legs); girth profile from a loose shirt (bloated torso).
+
 Recording check (quickcheck-0.2, `validation/capture_checks.py`): with the empty scene selected, the "Check
 recording" button also reports resolution (mm per depth pixel), body in frame, thighs apart, arms away from the body,
 arm stillness and turn duration, from ~40 sampled frames in about a second. On the first real recording it flags

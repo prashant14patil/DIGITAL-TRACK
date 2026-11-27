@@ -22,7 +22,7 @@ from pathlib import Path
 import numpy as np
 import open3d as o3d
 
-ALGORITHM = "depth-avatar-display-0.3 (EXPERIMENTAL)"  # 0.3: closed display surface, estimated areas, landmarks
+ALGORITHM = "depth-avatar-display-0.4 (EXPERIMENTAL)"  # 0.3: closed display surface, estimated areas, landmarks
 DISPLAY_MESH = "mesh_avatar_display.ply"
 
 
@@ -46,6 +46,45 @@ def display_transform(floor_from_camera: np.ndarray, vertices: np.ndarray) -> tu
             "forward_after": (rz @ forward).tolist(), "camera_right_after": (rz @ right).tolist(),
             "camera_position_body_m": f_fc[:3, 3].tolist()}  # camera centre (camera origin) in the body frame
     return t, info
+
+
+def _write_template_regions(run: Path, mesh, labels, template_only, report) -> dict:
+    """mesh_regions.glb (region id in red, template-only = green 255) + regions.json, as body_regions writes them."""
+    import trimesh
+
+    from .body_regions import COLOUR_STEP, ID
+
+    from .template_fit import REGIONS
+
+    v, f = np.asarray(mesh.vertices), np.asarray(mesh.triangles)
+    ids = np.array([ID[REGIONS[k]] for k in labels], np.uint8)
+    rgba = np.zeros((len(v), 4), np.uint8)
+    rgba[:, 0] = ids * COLOUR_STEP
+    rgba[:, 1] = np.where(template_only, 255, 0)
+    band = np.asarray(report.pop("pelvis_band", np.zeros(len(v), bool)), bool)
+    rgba[:, 2] = np.where(band, 255, 0)  # blue 255 = pelvis display band (drawn a deeper tone, like the reference)
+    rgba[:, 3] = 255
+    (run / "mesh_regions.glb").write_bytes(
+        trimesh.Trimesh(vertices=v, faces=f, vertex_colors=rgba, process=False).export(file_type="glb"))
+    anchors = {}
+    for name, rid in ID.items():
+        pts = v[ids == rid]
+        if not len(pts):
+            continue
+        if name.endswith("_arm"):
+            pts = pts[pts[:, 2] >= np.quantile(pts[:, 2], 0.6)]
+        elif name.endswith("_leg"):
+            pts = pts[(pts[:, 2] >= np.quantile(pts[:, 2], 0.75)) & (pts[:, 2] <= np.quantile(pts[:, 2], 0.95))]  # thigh
+        anchors[name] = [float(c) for c in pts.mean(axis=0)]
+    info = {"algorithm": report.get("algorithm"), "status": "template fitted to the scan (display only)",
+            "regions": [{"id": rid, "name": n, "vertex_count": int((ids == rid).sum()), "anchor": anchors.get(n)}
+                        for n, rid in ID.items()],
+            "colour_encoding": f"vertex red channel = id * {COLOUR_STEP} / 255; green 255 = template detail, not measured",
+            "estimated_vertex_fraction": float(np.mean(template_only)),
+            "left_right": "+X is the subject's left (subject faced the iPad at the start)",
+            "note": "display only; no measurement is derived from the avatar"}
+    (run / "regions.json").write_text(json.dumps(info, indent=2) + "\n", encoding="utf-8")
+    return info
 
 
 def prepare_depth_avatar(run_dir: str | Path) -> dict:
@@ -87,18 +126,33 @@ def prepare_depth_avatar(run_dir: str | Path) -> dict:
         disp, cleanup = clean_display_mesh(disp)
         cleanup["closed_surface_attempt"] = surface_report
         estimated = None
-    o3d.io.write_triangle_mesh(str(run / DISPLAY_MESH), disp)
-    # landmark heights from the measuring mesh (display transform is a rotation about z + horizontal shift: z kept)
+    # Template body fitted to the scan surface (user decision 2026-11-27): reference look, nothing measured from it.
+    template_report = None
+    try:
+        from .template_fit import fit_template
+
+        fitted, labels, template_only, template_report = fit_template(disp)
+    except (ValueError, FileNotFoundError) as e:
+        fitted, template_report = None, {"status": "refused", "reason": str(e)}
     levels = None
     bm = run / "body_measurements.json"
     if bm.is_file():
         levels = json.loads(bm.read_text(encoding="utf-8")).get("landmarks")
-    regions = write_region_files(run, mesh_name=DISPLAY_MESH, levels_z=levels, estimated=estimated)
+    if fitted is not None:
+        o3d.io.write_triangle_mesh(str(run / DISPLAY_MESH), fitted)
+        regions = _write_template_regions(run, fitted, labels, template_only, template_report)
+    else:
+        o3d.io.write_triangle_mesh(str(run / DISPLAY_MESH), disp)
+        # landmark heights from the measuring mesh (display transform is a rotation about z + horizontal shift)
+        regions = write_region_files(run, mesh_name=DISPLAY_MESH, levels_z=levels, estimated=estimated)
     record = {
         "algorithm": ALGORITHM, "created_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "source_mesh": "fused_mesh.ply (unchanged)", "display_mesh": DISPLAY_MESH,
         "transform_body_to_display": t.tolist(), **info,
         "display_cleanup": cleanup,
+        "template_fit": template_report,
+        "avatar_surface": "template fitted to the scan (face/hands/feet are template detail, not measured)"
+                          if fitted is not None else "scan surface (template fit refused or unavailable)",
         "region_levels_from": "body_measurements.json landmarks" if levels else "region heuristic",
         "run_status": log.get("status"), "run_status_note": log.get("status_note"),
         "units": "metres (rigid motion + shape-preserving cleanup of the depth mesh; nothing is measured from the display copy)",

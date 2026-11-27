@@ -283,7 +283,7 @@ export default function App() {
         <>
           <div className="page-head">
             <h1>Body avatar</h1>
-            <p>Your own scan shown with body-composition readings. Display only: nothing is measured from the shape.</p>
+            <p>A body fitted to your own scan, shown with body-composition readings. Display only: nothing is measured from the avatar.</p>
           </div>
           <AvatarView />
         </>

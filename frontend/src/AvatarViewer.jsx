@@ -77,9 +77,11 @@ export default function AvatarViewer({ meshUrl, regions, regionColors, view, cal
       const n = g.getAttribute("position").count;
       const ids = new Uint8Array(n);
       const est = new Uint8Array(n); // green channel: 1 = estimated (gap bridged for display, not measured)
+      const band = new Uint8Array(n); // blue channel: 1 = pelvis display band (deeper tone)
       for (let i = 0; i < n; i++) {
         ids[i] = src ? Math.round((src.getX(i) * 255) / 40) : 1;
         est[i] = src && src.getY(i) > 0.5 ? 1 : 0;
+        band[i] = src && src.getZ(i) > 0.5 ? 1 : 0;
       }
       g.setAttribute("color", new THREE.BufferAttribute(new Float32Array(n * 3), 3));
       if (!g.getAttribute("normal")) g.computeVertexNormals();
@@ -91,6 +93,7 @@ export default function AvatarViewer({ meshUrl, regions, regionColors, view, cal
       ctx.geometry = g;
       ctx.ids = ids;
       ctx.est = est;
+      ctx.band = band;
       setHasEstimated(est.some((x) => x));
 
       const body = new THREE.Group(); // Z-up -> Y-up, mirror view (subject's left on screen left)
@@ -216,6 +219,9 @@ export default function AvatarViewer({ meshUrl, regions, regionColors, view, cal
         if (ctx.est?.[i]) { // estimated areas: pale, so they never read as measured surface
           tmp.copy(c).lerp(ESTIMATED, 0.65);
           attr.setXYZ(i, tmp.r, tmp.g, tmp.b);
+        } else if (ctx.band?.[i]) { // pelvis band: deeper tone of the same region colour
+          tmp.copy(c).multiplyScalar(0.8);
+          attr.setXYZ(i, tmp.r, tmp.g, tmp.b);
         } else attr.setXYZ(i, c.r, c.g, c.b);
       }
       attr.needsUpdate = true;
@@ -249,7 +255,10 @@ export default function AvatarViewer({ meshUrl, regions, regionColors, view, cal
         </>
       )}
       {state === "ready" && hasEstimated && (
-        <div className="avatar-est-note">Pale areas: gaps bridged for display (estimated, not measured)</div>
+        <div className="avatar-est-note">
+          {regions?.status?.startsWith("template") ? "Pale areas: template detail (head, hands, feet), not measured"
+            : "Pale areas: gaps bridged for display (estimated, not measured)"}
+        </div>
       )}
       {state === "loading" && <div className="viewer-msg">Loading avatar…</div>}
       {state === "error" && <div className="viewer-msg bad">Could not load the avatar mesh.</div>}
