@@ -519,7 +519,8 @@ export default function App() {
             </table>
             </div>
           )}
-          {selected && <Details upload={selected} onClose={() => setSelected(null)} onJobStarted={onJobStarted} />}
+          {selected && <Details upload={selected} onClose={() => setSelected(null)} onJobStarted={onJobStarted}
+            onDeleted={() => { setSelected(null); refresh(); setJobsKey((k) => k + 1); }} />}
         </section>
 
         <MeshJobs refreshKey={jobsKey} focusJobId={focusJob} />
@@ -610,15 +611,35 @@ function Progress({ run, onRetry, onDiscard, onNext }) {
   );
 }
 
-function Details({ upload, onClose, onJobStarted }) {
+function Details({ upload, onClose, onJobStarted, onDeleted }) {
   const m = upload.metadata;
+  const [deleting, setDeleting] = useState(false);
+  const [delErr, setDelErr] = useState(null);
+  async function remove() {
+    const n = upload.file_count;
+    if (!window.confirm(`Delete "${m.label}" permanently?\n\nThis removes the uploaded ${n === 1 ? "file" : `${n} files`} (${formatBytes(upload.total_bytes)}) and every 3D mesh made from it. It cannot be undone.`)) return;
+    setDeleting(true);
+    setDelErr(null);
+    try {
+      await api.deleteUpload(upload.id);
+      onDeleted();
+    } catch (e) {
+      setDelErr(e.message);
+      setDeleting(false);
+    }
+  }
   return (
     <div className="details">
       <div className="dhead">
         <strong>{m.label}</strong>
         <span className="mono">{upload.id}</span>
         <button className="link right" onClick={onClose}>Close</button>
+        <button className="link danger" disabled={deleting} onClick={remove}
+          title="Delete this upload and the meshes made from it">
+          {deleting ? "Deleting…" : "Delete upload"}
+        </button>
       </div>
+      {delErr && <div className="errors">Could not delete: {delErr}</div>}
       <dl>
         <dt>Device</dt><dd>{[m.device_model, m.os_version].filter(Boolean).join(", ") || "not stated"}</dd>
         <dt>App</dt><dd>{[m.capture_app, m.capture_app_version].filter(Boolean).join(" ") || "not stated"}</dd>

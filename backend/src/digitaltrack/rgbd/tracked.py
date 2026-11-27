@@ -44,6 +44,7 @@ from . import visualize as vis
 from .consistency import ConsistencyParams, cull_mesh, free_space_votes, pixel_residuals
 from .depthfilter import DepthFilterParams, fusion_mask
 from .fuse import fuse_views
+from .rgbmask import RGBMaskParams, build_background, outline_overlay, refine_mask
 from .segment import (SegmentationError, SegmentParams, background_plate, estimate_floor, floor_with_vertical,
                       make_floor_frame, segment_subject_plate)
 from .stray import imu_gravity_up_camera, iter_rgb_frames, load_stray
@@ -71,6 +72,11 @@ class TrackedParams:
     consistency: ConsistencyParams = field(default_factory=ConsistencyParams)
     tsdf: TSDFParams = field(default_factory=_default_tsdf)
     use_imu_vertical: bool = True
+    # sharpen the depth mask with the RGB video vs the empty scene (rgbd.rgbmask): removes floor leak at the feet
+    # and the depth halo; only ever removes pixels
+    rgb_mask: bool = True
+    refine: bool = True  # refined closed mesh + measurement-eligibility gate (reconstruction.refine)
+    rgb_mask_params: RGBMaskParams = field(default_factory=RGBMaskParams)
     max_vertical_disagreement_deg: float = 5.0  # IMU vertical vs fitted floor normal; above => warn, use the floor
     fusion_floor_cut_m: float = 0.03  # floor noise was 7 mm RMS; height is measured from the plane, not the mesh
     max_turn_speed_deg_s: float = 15.0  # fast steps: motion blur and ARKit depth lag
@@ -427,9 +433,27 @@ def run_tracked(recording: str | Path, background: str | Path, out_root: str | P
     sift = cv2.SIFT_create(nfeatures=p.track.sift_features, contrastThreshold=p.track.sift_contrast)
     feats, thumbs, align_img = {}, {}, None
     kk = views[0].intrinsics
+    bgrgb, mask_stats, overlays = None, [], {}
+    if p.rgb_mask:
+        try:
+            bg_frames = [f for _, f in iter_rgb_frames(background, [int(v.source["frame"]) for v in bg_views])]
+            if not bg_frames:
+                raise ValueError("no decodable frames in the empty-scene rgb.mp4")
+            plate_depth = np.median(np.stack([v.depth_m for v in bg_views]), 0).astype(np.float32)
+            bgrgb = build_background(bg_frames, plate_depth, bg_views[0], floor_from_cam, p.rgb_mask_params)
+            log["rgb_mask"] = {"background": bgrgb.info}
+        except Exception as e:  # noqa: BLE001 - optional refinement: never fail the run for it
+            warnings.append(f"RGB mask refinement skipped: {e}")
+    overlay_at = set(ok_pos[:: max(1, len(ok_pos) // 3)][:3])
     for i, (fr, img) in enumerate(iter_rgb_frames(recording, frame_of.values())):
         k = pos_of[fr]
         v = views[k]
+        if bgrgb is not None:
+            before = subj[k]
+            subj[k], st = refine_mask(before, v, img, floor_from_cam, bgrgb, p.rgb_mask_params)
+            mask_stats.append(st)
+            if k in overlay_at:
+                overlays[k] = Path(outline_overlay(img, before, subj[k], run_dir / f"mask_rgb_refined_{len(overlays)}.png")).name
         feats[k] = extract_features(img, v.depth_m, v.confidence, subj[k], (kk.fx, kk.fy, kk.cx, kk.cy),
                                     floor_from_cam, p.track, sift, k)
         if k % p.thumb_every == 0:
@@ -438,6 +462,12 @@ def run_tracked(recording: str | Path, background: str | Path, out_root: str | P
             align_img = _alignment_image(cv2.resize(img, (960, 720)), subj[k], run_dir / "alignment_rgb_depth.png")
         if i % 50 == 0:
             tell("RGB features", i / max(len(frame_of), 1))
+    if mask_stats:
+        tot = sum(s_["pixels_in"] for s_ in mask_stats)
+        log["rgb_mask"].update({
+            "views": len(mask_stats), "pixels_in": tot, "floor_veto": sum(s_["floor_veto"] for s_ in mask_stats),
+            "wall_veto": sum(s_["wall_veto"] for s_ in mask_stats),
+            "removed_fraction": 1 - sum(s_["pixels_out"] for s_ in mask_stats) / max(tot, 1)})
     posed_pos = [k for k in ok_pos if k in feats]
     if len(posed_pos) < len(ok_pos):
         warnings.append(f"{len(ok_pos) - len(posed_pos)} views have no decodable RGB frame and are left out")
@@ -483,6 +513,10 @@ def run_tracked(recording: str | Path, background: str | Path, out_root: str | P
     from ..measurement.body import trim_floor_rim
 
     mesh, log["floor_rim_trim"] = trim_floor_rim(mesh)  # floor-level fusion residue outside the feet; logged
+    from ..reconstruction.mesh_qc import repair_mesh
+
+    tell("mesh repair", 0.0)
+    mesh, log["mesh_repair"] = repair_mesh(mesh)  # topology only (degenerate, non-manifold, self-intersecting); no vertex moved
     log["fusion"] = flog
     used = [sel[i] for i in keep]
     vf = flog["view_consistency"]["fraction_p05_p50"][1]
@@ -543,13 +577,48 @@ def run_tracked(recording: str | Path, background: str | Path, out_root: str | P
                                   "slices": prof}
     from ..measurement.body import measure_body, write_landmark_image
 
-    body = measure_body(mesh, source_method="rgbd_tracked_tsdf")
+    # the subject starts facing the iPad (protocol), and view 0 defines the body frame: subject's left = camera right
+    cam_right = floor_from_cam[:3, :3] @ np.array([1.0, 0.0, 0.0])
+    body = measure_body(mesh, source_method="rgbd_tracked_tsdf", subject_left_xy=cam_right[:2])
     (run_dir / "body_measurements.json").write_text(json.dumps(vis.to_jsonable(body), indent=2) + "\n",
                                                     encoding="utf-8")
     q["body_measurements"] = {"file": "body_measurements.json", "status": body["status"], "flags": body["flags"],
                               "landmarks": body["landmarks"],
                               "values": {m_["name"]: m_["value"] for m_ in body["measurements"]}}
+    # refined (closed, smooth) mesh for display, accepted as measurement-eligible only if it reproduces the values
+    if p.refine:
+        tell("refined mesh", 0.0)
+        from ..reconstruction.refine import refine
+
+        refined, est, rrep = refine(mesh)
+        q["refined_mesh"] = {k: rrep.get(k) for k in ("status", "reasons", "eligibility", "checks",
+                                                        "estimated_vertex_fraction")}
+        (run_dir / "refined_quality.json").write_text(json.dumps(vis.to_jsonable(rrep), indent=2) + "\n",
+                                                      encoding="utf-8")
+        checks.append(_check("refined_mesh", "pass" if rrep["status"] == "accepted" else "warn", rrep["status"],
+                             "accepted", rrep.get("eligibility", "")))
+        if refined is not None:
+            import trimesh
+
+            o3d.io.write_triangle_mesh(str(run_dir / "refined_mesh.ply"), refined)
+            rgba = np.zeros((len(refined.vertices), 4), np.uint8)
+            rgba[:, 1] = np.where(est, 255, 0)  # green channel = estimated (gap bridged, not measured)
+            rgba[:, 3] = 255
+            tm_ = trimesh.Trimesh(np.asarray(refined.vertices), np.asarray(refined.triangles), vertex_colors=rgba,
+                                  process=False)
+            (run_dir / "refined_mesh.glb").write_bytes(tm_.export(file_type="glb"))
+            sub = run_dir / "_refined_render"
+            sub.mkdir(exist_ok=True)
+            vis.write_mesh_renders(refined, [np.asarray(refined.vertices)], sub)
+            (sub / "mesh_render.png").replace(run_dir / "refined_render.png")
+            for f_ in sub.iterdir():
+                f_.unlink()
+            sub.rmdir()
     images: dict[str, str] = {}
+    if (run_dir / "refined_render.png").is_file():
+        images[f"Refined mesh ({q['refined_mesh']['status']}): closed surface fitted to the measuring mesh"] =             "refined_render.png"
+    for n_ in overlays.values():
+        images[f"Subject mask: depth only (red) vs RGB-sharpened (green) [{n_}]"] = n_
     images["Landmarks and measurement levels (proposed definitions, not validated)"] = Path(
         write_landmark_image(mesh, body, run_dir / "landmarks.png")).name
     if align_img:

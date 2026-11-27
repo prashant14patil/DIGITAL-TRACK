@@ -93,6 +93,18 @@ def test_incomplete_upload_can_be_discarded(client, tmp_path):
     assert not (tmp_path / "uploads" / uid).exists()
 
 
+def test_finalized_upload_needs_explicit_permanent_delete(client, tmp_path):
+    uid = _upload(client)
+    client.post(f"/api/uploads/{uid}/finalize", json={"files": [{"path": p, "size": len(d)} for p, d in FILES.items()]})
+    r = client.delete(f"/api/uploads/{uid}")  # plain discard never removes raw data
+    assert r.status_code == 409 and (tmp_path / "uploads" / uid / "export").is_dir()
+    assert client.delete(f"/api/uploads/{uid}", params={"permanently": "true"}).status_code == 204  # read-only files too
+    assert not (tmp_path / "uploads" / uid).exists()
+    assert client.get(f"/api/uploads/{uid}").status_code == 404
+    assert all(u["id"] != uid for u in client.get("/api/uploads").json())
+    assert client.delete(f"/api/uploads/{uid}", params={"permanently": "true"}).status_code == 404
+
+
 @pytest.mark.parametrize("bad", ["../x", "a/../../x", "/etc/passwd", "C:/x", "C:x", "a//b", "a/./b", "", "a\x00b",
                                  "CON", "nul.txt", "a/b.", "a/b ", 'a"b', "a?b"])
 def test_unsafe_paths_rejected(bad):

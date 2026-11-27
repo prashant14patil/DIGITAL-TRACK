@@ -5,7 +5,12 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 
 // Interactive viewer for a result mesh (.glb). Display only: never used to compute anything.
 // The demo mesh is Z-up (height-normalised); three.js is Y-up, so the model is rotated -90° about X.
-export default function MeshViewer({ url, height = 460 }) {
+// `polished`: refined mesh look (satin body, soft shadow, platform); vertices flagged estimated in the GLB's green
+// vertex channel are shown pale. The look never changes the geometry.
+const BODY = new THREE.Color("#a8dcc8");
+const PALE = new THREE.Color("#eef3f1");
+
+export default function MeshViewer({ url, height = 460, polished = false, onError }) {
   const mount = useRef(null);
   const [state, setState] = useState("loading");
 
@@ -17,6 +22,11 @@ export default function MeshViewer({ url, height = 460 }) {
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.setSize(width, height);
     renderer.setClearColor(0x000000, 0);
+    if (polished) {
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    }
     el.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
@@ -37,7 +47,22 @@ export default function MeshViewer({ url, height = 460 }) {
         const model = gltf.scene;
         model.rotation.x = -Math.PI / 2;
         model.traverse((o) => {
-          if (o.isMesh) {
+          if (!o.isMesh) return;
+          if (polished) {
+            const g = o.geometry;
+            const src = g.getAttribute("color");
+            const n = g.getAttribute("position").count;
+            const cols = new Float32Array(n * 3);
+            for (let i = 0; i < n; i++) {
+              const c = src && src.getY(i) > 0.5 ? PALE : BODY;
+              cols[3 * i] = c.r; cols[3 * i + 1] = c.g; cols[3 * i + 2] = c.b;
+            }
+            g.setAttribute("color", new THREE.BufferAttribute(cols, 3));
+            if (!g.getAttribute("normal")) g.computeVertexNormals();
+            o.material = new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 0.6, metalness: 0.0,
+              sheen: 0.5, sheenRoughness: 0.6, clearcoat: 0.08, clearcoatRoughness: 0.6, side: THREE.DoubleSide });
+            o.castShadow = true;
+          } else {
             o.material = new THREE.MeshStandardMaterial({ color: 0xc9ccd3, roughness: 0.75, metalness: 0.0,
               side: THREE.DoubleSide });
           }
@@ -49,15 +74,35 @@ export default function MeshViewer({ url, height = 460 }) {
         controls.target.copy(centre);
         camera.position.set(centre.x, centre.y + size.y * 0.1, centre.z + size.y * 2.4);
         controls.update();
-        const grid = new THREE.GridHelper(size.y * 1.2, 12, 0x8a929c, 0x8a929c);
-        grid.material.transparent = true;
-        grid.material.opacity = 0.35;
-        grid.position.y = box.min.y;
-        scene.add(grid);
+        if (polished) {
+          sun.castShadow = true;
+          sun.shadow.mapSize.set(2048, 2048);
+          const sc = sun.shadow.camera;
+          sc.left = sc.bottom = -size.y; sc.right = sc.top = size.y; sc.near = 0.1; sc.far = 20;
+          sun.position.set(centre.x + size.y, centre.y + size.y * 1.5, centre.z + size.y * 1.2);
+          sun.target.position.copy(centre);
+          scene.add(sun.target);
+          const plat = new THREE.Mesh(new THREE.CylinderGeometry(size.y * 0.2, size.y * 0.21, size.y * 0.03, 64),
+            new THREE.MeshPhysicalMaterial({ color: 0xf9fafb, roughness: 0.35, clearcoat: 0.3 }));
+          plat.position.set(centre.x, box.min.y - size.y * 0.015, centre.z);
+          plat.receiveShadow = true;
+          scene.add(plat);
+          const ground = new THREE.Mesh(new THREE.PlaneGeometry(8, 8), new THREE.ShadowMaterial({ opacity: 0.15 }));
+          ground.rotation.x = -Math.PI / 2;
+          ground.position.y = box.min.y - size.y * 0.03;
+          ground.receiveShadow = true;
+          scene.add(ground);
+        } else {
+          const grid = new THREE.GridHelper(size.y * 1.2, 12, 0x8a929c, 0x8a929c);
+          grid.material.transparent = true;
+          grid.material.opacity = 0.35;
+          grid.position.y = box.min.y;
+          scene.add(grid);
+        }
         setState("ready");
       },
       undefined,
-      () => !disposed && setState("error"),
+      () => { if (!disposed) { setState("error"); onError?.(); } },
     );
 
     const tick = () => {
@@ -81,7 +126,7 @@ export default function MeshViewer({ url, height = 460 }) {
       renderer.dispose();
       el.removeChild(renderer.domElement);
     };
-  }, [url, height]);
+  }, [url, height, polished]);
 
   return (
     <div className="viewer">

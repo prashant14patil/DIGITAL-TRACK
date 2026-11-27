@@ -29,7 +29,7 @@ from ..rgbd.segment import (SegmentationError, SegmentParams, background_plate, 
 from ..rgbd.stops import StopParams, detect_stops, median_view, stop_threshold
 from ..rgbd.views import RGBDView, valid_mask
 
-QUICKCHECK_VERSION = "quickcheck-0.1"
+QUICKCHECK_VERSION = "quickcheck-0.2"  # 0.2: body-capture checks (validation/capture_checks.py)
 LIMITS = {  # proposed, from one real recording; unvalidated
     "min_stops": 16,  # 15 deg steps over a full turn give ~24
     "min_pause_s": 1.5,
@@ -45,6 +45,24 @@ def _check(cid: str, status: str, message: str, value=None, limit=None) -> dict:
 
 def quick_check(views: list[RGBDView], *, info: dict | None = None, background_views: list[RGBDView] | None = None,
                 stops_params: StopParams | None = None, pose_params: PoseParams | None = None) -> dict[str, Any]:
+    """Stop/turn checks (below) + body-capture checks (validation.capture_checks) when an empty scene is given."""
+    out = _stop_checks(views, info=info, background_views=background_views, stops_params=stops_params,
+                       pose_params=pose_params)
+    if background_views:
+        from .capture_checks import body_capture_checks
+
+        body, det = body_capture_checks(views, background_views, info)
+        out["body_capture"] = det
+        out = _finish(out, out["checks"] + body)
+    else:
+        out = _finish(out, out["checks"] + [_check("body_capture", "warn", "body checks (distance, legs apart, arms "
+                                                   "away and still) need the empty-scene recording: select it and "
+                                                   "check again")])
+    return out
+
+
+def _stop_checks(views: list[RGBDView], *, info: dict | None = None, background_views: list[RGBDView] | None = None,
+                 stops_params: StopParams | None = None, pose_params: PoseParams | None = None) -> dict[str, Any]:
     info = info or {}
     sp = stops_params or StopParams(adaptive=True, min_frames=6)  # same as the website job
     pp = pose_params or PoseParams()

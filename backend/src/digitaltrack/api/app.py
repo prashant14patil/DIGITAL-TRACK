@@ -146,8 +146,17 @@ def create_app(data_dir: str | Path | None = None, *, serve_frontend: bool = Tru
         return _call(store.finalize, upload_id, [f.model_dump() for f in req.files])
 
     @app.delete("/api/uploads/{upload_id}", status_code=204)
-    def discard(upload_id: str):
-        _call(store.discard, upload_id)
+    def discard(upload_id: str, permanently: bool = False):
+        """Without `permanently`: discard an unfinished transfer only. With it: delete the upload (raw files
+        included) and every mesh made from it. The web page asks the user to confirm first."""
+        if not permanently:
+            return _call(store.discard, upload_id)
+        try:
+            app.state.jobs.delete_upload(upload_id)
+        except UploadNotFound:
+            raise HTTPException(404, "upload not found")
+        except ValueError as e:
+            raise HTTPException(409, str(e))
 
     if serve_frontend and FRONTEND_DIST.is_dir():
         app.mount("/assets", StaticFiles(directory=FRONTEND_DIST / "assets"), name="assets")

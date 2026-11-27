@@ -198,6 +198,28 @@ class UploadStore:
             db.execute("DELETE FROM uploads WHERE id = ?", (upload_id,))
         shutil.rmtree(self._dir(upload_id), ignore_errors=True)
 
+    def delete(self, upload_id: str) -> None:
+        """Permanently delete an upload, finalized or not: raw files, manifest, metadata, extracted copies, index rows.
+
+        Only for an explicit user request (retention, withdrawn consent, unwanted recording). Raw files are never
+        modified, only removed as a whole. Files go first: if that fails the upload stays listed and can be retried.
+        """
+        import shutil
+
+        def writable_then_retry(func, path, _exc):  # finalized files are read-only; Windows refuses to delete them
+            os.chmod(path, stat.S_IWRITE | stat.S_IREAD)
+            func(path)
+
+        with self._lock:
+            with self._db() as db:
+                self._row(db, upload_id)  # raises UploadNotFound
+            d = self._dir(upload_id)
+            if d.exists():
+                shutil.rmtree(d, onerror=writable_then_retry)
+            with self._db() as db:
+                db.execute("DELETE FROM files WHERE upload_id = ?", (upload_id,))
+                db.execute("DELETE FROM uploads WHERE id = ?", (upload_id,))
+
     # ---- queries --------------------------------------------------------------------------------
 
     def get(self, upload_id: str) -> dict[str, Any]:

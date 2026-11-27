@@ -42,6 +42,9 @@ DEPTH_RESULT_FILES = {  # depth jobs: public name -> file in the run directory (
     "mesh.obj": "fused_mesh.obj",  # tracked pipeline only
     "quality_report.json": "quality_report.json",  # tracked pipeline only
     "body_measurements.json": "body_measurements.json",  # tracked pipeline only (proposed definitions)
+    "refined.glb": "refined_mesh.glb",  # tracked pipeline only: closed display mesh fitted to the measuring mesh
+    "refined.ply": "refined_mesh.ply",
+    "refined_quality.json": "refined_quality.json",
 }
 DEPTH_CONTINUOUS_VIEWS = 48  # fallback when no pauses are found: evenly spaced frames
 TARGET_FPS = 10.0  # frames kept per second of video (every n-th decoded frame)
@@ -392,6 +395,7 @@ class JobManager:
             "background_upload_id": (job.get("background") or {}).get("upload_id"),
             "pose_checks": q.get("checks"),
             "body_measurements": _body_summary(run_dir),
+            "refined_mesh": q.get("refined_mesh"),
             "mesh": {"vertices": mesh.get("vertices"), "triangles": mesh.get("triangles"),
                      "holes": mesh.get("holes"),
                      "height_extent_m": round(bounds[1][2] - bounds[0][2], 3) if bounds else None,
@@ -475,6 +479,26 @@ class JobManager:
                 shutil.rmtree(t, onerror=_clear_readonly)  # session copies keep source files read-only
                 removed.append(str(t))
             return {"id": job_id, "removed": removed}
+
+    def delete_upload(self, upload_id: str) -> dict[str, Any]:
+        """Permanently delete an upload AND every mesh made from it (user request from the web page).
+
+        Refused while any job that reads this upload (as recording or as empty-scene background) is queued/running.
+        Meshes that only used it as background keep their results (they no longer need it).
+        """
+        import shutil
+
+        self.store.get(upload_id)  # raises UploadNotFound
+        jobs = self.list()
+        if any(j["status"] in ("queued", "running")
+               and upload_id in (j["upload_id"], (j.get("background") or {}).get("upload_id")) for j in jobs):
+            raise ValueError("a mesh is still being made from this recording; wait until it finishes or fails")
+        removed = [self.delete(j["id"])["id"] for j in jobs if j["upload_id"] == upload_id]
+        processing = self.store.data_dir.parent / "processing" / upload_id  # leftovers not tied to a listed job
+        if processing.is_dir():
+            shutil.rmtree(processing, onerror=_clear_readonly)
+        self.store.delete(upload_id)
+        return {"id": upload_id, "meshes_removed": removed}
 
     def result_file(self, job_id: str, name: str) -> Path:
         job = self.get(job_id)

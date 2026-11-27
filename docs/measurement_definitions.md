@@ -41,13 +41,29 @@ For metric body meshes in the body frame (floor plane z = 0, +z up), e.g. `rgbd.
 * **neck_z**: smallest lateral width of the torso part between 78 % and 95 % of the top height.
 * **arm_separation_z**: highest slice below the neck where separate parts exist on BOTH lateral sides of the torso.
   With arms hanging close this is below the true axilla.
-* **crotch_z**: lowest height at which two parts separated laterally by > 8 cm (the legs) become one for at least
-  3 consecutive slices. Flagged when outside 40-52 % of the top height (thighs touching in the mesh bias it low).
+* **crotch_z** (algorithm 0.3): legs are tracked from below while they are two parts > 8 cm apart laterally; the
+  crotch is the lowest height where the CLOSED section outline, cut by the front-back line through the midpoint
+  between the legs, is at least 60 % as deep as a leg, for 3 consecutive slices. Earlier rules ("legs stop being two
+  parts", 0.1-0.2) fired where a leg outline broke up in a hole or where debris strands / a narrow inner-thigh bridge
+  joined the legs (first real scan: 0.38-0.68 m); this rule gave 0.76-0.90 m on four reconstructions of that scan
+  (42-50 % of the height; the thighs merge gradually there) and 0.81 m (truth 0.80-0.81) on synthetic figures.
+  Flagged when outside 40-52 % of the top height.
 * **chest_circumference**: largest torso-part circumference 2-10 cm below arm_separation_z.
 * **waist_circumference**: smallest torso-part circumference within 35-75 % of crotch_z .. arm_separation_z.
 * **hip_circumference**: largest torso-part circumference within 0-35 % of crotch_z .. arm_separation_z.
-* **thigh_circumference_side_neg / _pos**: each leg part 3 cm below crotch_z (left/right not assigned).
-* **upper_arm_circumference**: `unavailable` (needs slices perpendicular to the arm axis).
+* **Limbs (algorithm 0.4)** are cut PERPENDICULAR to the limb's own axis: the axis is a line fitted (SVD) through
+  the centroids of that limb's separated slice parts; if the centre line is not straight (RMS residual > 2 cm for
+  legs, 1.5 cm for arms: a moving or ghost limb) the value is `unavailable`. The closed outline around the axis point
+  is measured like the torso (smoothed perimeter). Left/right: the tracked pipeline passes the subject's left as
+  the camera's right at the first view (the protocol has the subject START facing the iPad; view 0 defines the body
+  frame), giving `_left` / `_right`; without that information the names are `_side_neg` / `_side_pos`.
+  * **thigh_circumference_left / _right**: 3 cm below crotch_z.
+  * **calf_circumference_left / _right**: largest perpendicular leg outline between 10 % and 30 % of the top height.
+  * **upper_arm_circumference_left / _right**: 3 cm below arm_separation_z (provisional level: no shoulder or elbow
+    landmarks yet), arm axis fitted between arm_separation_z - 25 cm and arm_separation_z.
+  Synthetic: within 0.5 mm noise-free; +4-7 mm (legs) and +8 mm (arms, small radius) at 2 mm noise. A 15 deg tilted
+  leg is measured within 2 mm (a horizontal cut would read ~3.5 % long). First real scan: all limbs `unavailable`
+  (ghost arm, merged thighs, holes), which the recording check now flags before processing.
 * Floor rim (`trim_floor_rim`): geometry below 8 cm outside the feet footprint (8-14 cm band, +3 cm) is removed
   before measuring; logged.
 

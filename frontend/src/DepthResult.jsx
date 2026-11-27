@@ -12,6 +12,7 @@ const IMAGES = [
   ["poses.png", "Estimated turn per view"],
   ["slices.png", "Horizontal slices"],
   // RGB-D tracked pipeline (rgbd/tracked.py)
+  ["refined_render.png", "Refined mesh from several sides"],
   ["landmarks.png", "Landmarks and measurement levels (proposed definitions)"],
   ["turn_angle.png", "Estimated body turn over time"],
   ["view_consistency.png", "How well each view agrees with the fused surface"],
@@ -70,6 +71,40 @@ function BodyMeasurements({ body }) {
   );
 }
 
+// Refined mesh (closed, smooth, fitted to the measuring mesh) is shown by default when it exists; the raw measuring
+// mesh is one click away. The eligibility verdict comes from the backend gate (reconstruction/refine.py).
+function MeshChoice({ job, file, has }) {
+  const r = job.result || {};
+  const ref = r.refined_mesh;
+  const canRefined = has("refined.glb");
+  const [which, setWhich] = useState(canRefined ? "refined" : "measuring");
+  const [refinedFailed, setRefinedFailed] = useState(false);
+  return (
+    <>
+      {canRefined && (
+        <div className="seg-toggle">
+          <button className={which === "refined" ? "on" : ""} onClick={() => setWhich("refined")}>Refined mesh</button>
+          <button className={which === "measuring" ? "on" : ""} onClick={() => setWhich("measuring")}>Measuring mesh (raw)</button>
+          {ref && which === "refined" && (
+            <span className={ref.status === "accepted" ? "ok-text" : "warn-text"}>
+              {ref.status === "accepted" ? "Measurement-eligible: reproduces every value of the measuring mesh"
+                : `Flagged: ${(ref.reasons || []).join(", ")}`}
+              {ref.estimated_vertex_fraction != null && ` · pale areas ${(100 * ref.estimated_vertex_fraction).toFixed(1)} % (gaps bridged, not measured)`}
+            </span>
+          )}
+        </div>
+      )}
+      {refinedFailed && (
+        <div className="muted">The refined mesh could not be loaded from this server (it may run older code: restart
+          it, or use the server on port 8765). Showing the measuring mesh instead.</div>
+      )}
+      {which === "refined" && canRefined && !refinedFailed
+        ? <MeshViewer key="refined" url={file("refined.glb")} polished onError={() => setRefinedFailed(true)} />
+        : <MeshViewer key="measuring" url={file("mesh.glb")} />}
+    </>
+  );
+}
+
 // Result of a LiDAR depth job (Stray Scanner zip). Failed runs still show their diagnostic images.
 export default function DepthResult({ job }) {
   const file = (name) => api.jobFileUrl(job.id, name);
@@ -85,13 +120,16 @@ export default function DepthResult({ job }) {
           shown.
         </div>
       )}
-      {has("mesh.glb") && <MeshViewer url={file("mesh.glb")} />}
+      {has("mesh.glb") && <MeshChoice job={job} file={file} has={has} />}
       {job.status === "complete" && has("mesh.ply") && <SendToAvatar job={job} />}
       {job.status === "complete" && <Comparison job={job} />}
       <div className="links">
         {has("mesh.glb") && <a className="link" href={file("mesh.glb")} download={`${job.id}_mesh.glb`}>Download mesh (.glb)</a>}
         {has("mesh.ply") && <a className="link" href={file("mesh.ply")} download={`${job.id}_mesh.ply`}>Download mesh (.ply)</a>}
         {has("mesh.obj") && <a className="link" href={file("mesh.obj")} download={`${job.id}_mesh.obj`}>Download mesh (.obj)</a>}
+        {has("refined.glb") && <a className="link" href={file("refined.glb")} download={`${job.id}_refined.glb`}>Download refined mesh (.glb)</a>}
+        {has("refined.ply") && <a className="link" href={file("refined.ply")} download={`${job.id}_refined.ply`}>Download refined mesh (.ply)</a>}
+        {has("refined_quality.json") && <a className="link" href={file("refined_quality.json")} target="_blank" rel="noreferrer">refined_quality.json</a>}
         {has("report.html") && <a className="link" href={file("report.html")} target="_blank" rel="noreferrer">Full report</a>}
         {has("quality_report.json") && <a className="link" href={file("quality_report.json")} target="_blank" rel="noreferrer">quality_report.json</a>}
         {has("run_log.json") && <a className="link" href={file("run_log.json")} target="_blank" rel="noreferrer">run_log.json</a>}

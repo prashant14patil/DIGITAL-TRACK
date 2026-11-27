@@ -34,6 +34,8 @@ export const api = {
       body: JSON.stringify({ files }),
     }).then(json),
   discard: (id) => fetch(`/api/uploads/${id}`, { method: "DELETE" }).then(json),
+  // finalized upload + every mesh made from it; the page confirms first
+  deleteUpload: (id) => fetch(`/api/uploads/${id}?permanently=true`, { method: "DELETE" }).then(json),
 
   // processing jobs (experimental mesh)
   process: (id, file, backgroundUploadId) =>
@@ -43,7 +45,10 @@ export const api = {
       body: JSON.stringify({ ...(file ? { file } : {}), ...(backgroundUploadId ? { background_upload_id: backgroundUploadId } : {}) }),
     }).then(json),
   inspect: (id) => fetch(`/api/uploads/${id}/inspect`, { method: "POST" }).then(json),
-  quickcheck: (id) => fetch(`/api/uploads/${id}/quickcheck`, { method: "POST" }).then(json),
+  quickcheck: (id, bg) => fetch(`/api/uploads/${id}/quickcheck`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(bg ? { background_upload_id: bg } : {}),
+  }).then(json),
   comparison: (jobId) => fetch(`/api/jobs/${jobId}/comparison`).then(json),
   prepareAvatar: (jobId) => fetch(`/api/jobs/${jobId}/avatar`, { method: "POST" }).then(json),
   avatarScans: () => fetch("/api/avatar/scans").then(json),

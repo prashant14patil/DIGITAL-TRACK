@@ -24,7 +24,7 @@ import open3d as o3d
 from scipy import ndimage
 
 DEFINITION_VERSION = "body-provisional-2"  # 2: chest window 2-10 cm below arm separation
-ALGORITHM_VERSION = "body-slices-0.2"  # 0.2: smoothed-outline perimeter; median-filtered level choice
+ALGORITHM_VERSION = "body-slices-0.4"  # 0.4: limbs perpendicular to their axes;  # 0.3: crotch = full-depth surface between the legs; 0.2: smoothed perimeter
 
 
 @dataclass(frozen=True)
@@ -36,6 +36,7 @@ class BodyParams:
     samples: int = 600000
     min_part_fraction: float = 0.03  # parts with fewer points than this share of the slice are ignored
     min_leg_separation_m: float = 0.08
+    crotch_depth_ratio: float = 0.6  # surface between the legs must be this deep relative to a leg (see crotch)
     closed_area_ratio: float = 0.6  # closed polygon area / part's filled area below this => outline open
     # perimeter of the outline after a Gaussian low-pass along the outline (a tape follows a smooth path; surface
     # noise makes the raw outline zig-zag: synthetic +19 % at 1 mm, +56 % at 2 mm noise). sigma 10 mm: within
@@ -56,6 +57,7 @@ class Part:
     centroid: np.ndarray
     extent: np.ndarray
     label: int
+    pts: np.ndarray | None = None  # the part's slice points (x, y)
 
 
 @dataclass
@@ -114,7 +116,7 @@ def _slice_parts(pts: np.ndarray, z: float, p: BodyParams) -> Slice:
     for k in range(1, n + 1):
         q = s[l == k]
         if len(q) >= p.min_part_fraction * len(s):
-            sl.parts.append(Part(len(q), q.mean(0), np.ptp(q, 0), k))
+            sl.parts.append(Part(len(q), q.mean(0), np.ptp(q, 0), k, q))
     sl.parts.sort(key=lambda a: -a.n)
     sl.lab, sl.lo = lab, lo
     return sl
@@ -192,6 +194,7 @@ def _value(name, value, status, reasons, **extra):
 
 
 def measure_body(mesh: o3d.geometry.TriangleMesh, p: BodyParams | None = None, *, source_method: str = "mesh",
+                 subject_left_xy=None,
                  validated: bool = False) -> dict:
     from .basic import o3d_to_trimesh
 
@@ -271,11 +274,36 @@ def measure_body(mesh: o3d.geometry.TriangleMesh, p: BodyParams | None = None, *
                     return a, b
         return None
 
+    # crotch = lowest height at which the surface BETWEEN the legs is as deep (front-back) as the legs themselves:
+    # at the midpoint of the leg positions tracked from below, the depth extent of the surface must reach
+    # crotch_depth_ratio x the legs' own depth for 3 consecutive slices. On the first real scan the inner thighs were
+    # joined by a narrow 2-4 cm bridge (LiDAR merges them) and by debris strands; "one part spans both legs" fired there
+    # (0.38-0.47 m), the pelvis only became full depth at ~0.86 m.
+    from shapely.geometry import LineString
+
+    fwd = np.array([-lat[1], lat[0]])
     crotch_z = None
     low = [sl for sl in slices if 0.2 * top < sl.z < (arm_z or 0.7 * top)]
-    for k in range(len(low) - 3):  # LOWEST stable transition going up (higher splits are arms/hands/holes)
-        if legs_apart(low[k]) and not any(legs_apart(s) for s in low[k + 1:k + 4]):
-            crotch_z = float(low[k + 1].z)
+    legs, leg_depth, run = None, None, 0
+    for k, sl in enumerate(low):
+        pair = legs_apart(sl)
+        if pair and all(a.pts is not None for a in pair):
+            legs = [float((a.centroid - axis) @ lat) for a in pair]
+            leg_depth = float(np.mean([np.ptp((a.pts - axis) @ fwd) for a in pair]))
+        if legs is None or not leg_depth:
+            continue
+        mid = 0.5 * (legs[0] + legs[1])
+        # chord of the CLOSED section outline along the front-back line through the midpoint between the legs:
+        # loose debris strands are not closed outlines, and the narrow inner-thigh bridge gives a short chord
+        c0 = axis + mid * lat
+        line = LineString([tuple(c0 - 0.6 * fwd), tuple(c0 + 0.6 * fwd)])
+        depth_mid = 0.0
+        for q in _section_polygons(tm, sl.z):
+            if q.area > 0.003:
+                depth_mid = max(depth_mid, float(q.intersection(line).length))
+        run = run + 1 if depth_mid >= p.crotch_depth_ratio * leg_depth else 0
+        if run == 3:
+            crotch_z = float(low[k - 2].z)
             break
     if crotch_z is None:
         out["flags"].append("legs never appear as two separate parts: crotch not found")
@@ -336,22 +364,114 @@ def measure_body(mesh: o3d.geometry.TriangleMesh, p: BodyParams | None = None, *
         for n in ("chest_circumference", "waist_circumference", "hip_circumference"):
             out["measurements"].append(_value(n, None, "unavailable", ["crotch or arm separation not found"]))
 
-    # thighs: each leg part 3 cm below the crotch
+    # limbs: perpendicular to each limb's own axis (CLAUDE.md). Axis = line fitted through the centroids of that
+    # limb's separated slice parts; a poor fit (moving / ghost limb) makes the value unavailable instead of guessed.
+    def side_parts(lo_z, hi_z, pick):
+        pts = {-1: [], 1: []}
+        for sl in slices:
+            if lo_z <= sl.z <= hi_z:
+                for a, sgn in pick(sl):
+                    if sgn in pts:
+                        pts[sgn].append([*a.centroid, sl.z])
+        return {k: np.array(v) for k, v in pts.items()}
+
+    def fit_axis(c):
+        if len(c) < 5:
+            return None, None, None
+        m0 = c.mean(0)
+        _, _, vt = np.linalg.svd(c - m0)
+        d = vt[0] if vt[0][2] >= 0 else -vt[0]
+        e = (c - m0) - np.outer((c - m0) @ d, d)
+        return m0, d, float(np.sqrt(np.mean(np.sum(e ** 2, axis=1))))
+
+    def at_z(m0, d, z):
+        return m0 + d * (z - m0[2]) / d[2]
+
+    def limb_value(name, fit, z, reasons, max_resid=0.02):
+        m0, d, resid = fit
+        if m0 is None:
+            return _value(name, None, "unavailable", ["too few separated slices to find the limb axis"])
+        if resid > max_resid:
+            return _value(name, None, "unavailable", [f"limb centre line is not straight (residual {resid * 100:.1f} cm):"
+                                                      " the limb moved or has ghost surfaces"])
+        c = limb_circumference(tm, at_z(m0, d, z), d, p)
+        if c["value_m"] is None:
+            return _value(name, None, "unavailable", [c["reason"]], level_z=z)
+        tilt = float(np.degrees(np.arccos(min(1.0, abs(d[2])))))
+        return _value(name, c["value_m"], st, base + reasons + [f"slice perpendicular to the limb axis (tilt {tilt:.0f} deg)"],
+                      level_z=z, convex_hull_m=c["convex_hull_m"], raw_outline_m=c["raw_outline_m"])
+
+    # left / right: given the subject's LEFT direction in the body frame (e.g. camera right at the first view when
+    # the subject started facing the camera), parts on that side of the lateral axis are "left"
+    if subject_left_xy is not None:
+        sl_ = np.asarray(subject_left_xy, float)[:2]
+        left_sign = 1 if float(sl_ @ lat) >= 0 else -1
+        side_tag = {left_sign: "left", -left_sign: "right"}
+        lr = "left/right from the start direction (assumes the subject faced the camera at the start)"
+        out["left_right"] = {"subject_left_xy": sl_.tolist(), "assumption": lr}
+    else:
+        side_tag = {-1: "side_neg", 1: "side_pos"}
+        lr = "left/right not assigned: the body's facing direction is not determined"
     if crotch_z is not None:
-        sl = min(slices, key=lambda s: abs(s.z - (crotch_z - 0.03)))
-        pair = legs_apart(sl)
-        if pair:
-            for a in sorted(pair, key=lambda a: (a.centroid - axis) @ lat):
-                side_name = "thigh_circumference_side_neg" if (a.centroid - axis) @ lat < 0 else "thigh_circumference_side_pos"
-                out["measurements"].append(circ_at(sl, a, side_name, reasons_crotch + [
-                    "left/right not assigned: the body's facing direction is not determined"]))
-        else:
-            out["measurements"].append(_value("thigh_circumference", None, "unavailable",
-                                              ["legs not separated 3 cm below the crotch"]))
-    out["measurements"].append(_value("upper_arm_circumference", None, "unavailable",
-                                      ["needs slices perpendicular to the arm axis: not implemented"]))
+        def legs_pick(sl):
+            pr = legs_apart(sl)
+            return [(a, int(np.sign((a.centroid - axis) @ lat))) for a in pr] if pr else []
+        legs = side_parts(0.12 * top, crotch_z - 0.02, legs_pick)
+        for sgn, tag in ((-1, side_tag[-1]), (1, side_tag[1])):
+            fit = fit_axis(legs[sgn])
+            out["measurements"].append(limb_value(f"thigh_circumference_{tag}", fit, crotch_z - 0.03,
+                                                  reasons_crotch + [lr, "3 cm below the crotch"]))
+            m0, d, r_ = fit
+            if m0 is not None and r_ <= 0.02:
+                vals = [(z, limb_circumference(tm, at_z(m0, d, z), d, p)) for z in np.arange(0.10 * top, 0.30 * top, 0.01)]
+                vals = [(z, c) for z, c in vals if c["value_m"]]
+                if vals:
+                    zb = max(vals, key=lambda zc: zc[1]["value_m"])[0]
+                    out["measurements"].append(limb_value(f"calf_circumference_{tag}", fit, zb,
+                                                          [lr, "largest perpendicular leg outline at 10-30 % of height"]))
+                else:
+                    out["measurements"].append(_value(f"calf_circumference_{tag}", None, "unavailable",
+                                                      ["no closed leg outline at 10-30 % of height"]))
+    else:
+        out["measurements"].append(_value("thigh_circumference", None, "unavailable", ["crotch not found"]))
+    if arm_z is not None:
+        def arms_pick(sl):
+            t = torso_part(sl)
+            if t is None:
+                return []
+            return [(a, int(np.sign((a.centroid - axis) @ lat))) for a in sl.parts
+                    if a is not t and abs((a.centroid - axis) @ lat) > 0.5 * width(t)]
+        arms = side_parts(arm_z - 0.25, arm_z, arms_pick)
+        for sgn, tag in ((-1, side_tag[-1]), (1, side_tag[1])):
+            out["measurements"].append(limb_value(f"upper_arm_circumference_{tag}", fit_axis(arms[sgn]), arm_z - 0.03,
+                                                  [lr, "3 cm below arm separation (provisional level: no shoulder or"
+                                                   " elbow landmarks)"], max_resid=0.015))
+    else:
+        out["measurements"].append(_value("upper_arm_circumference", None, "unavailable", ["arm separation not found"]))
     out["status"] = "unreliable" if not validated else "measured"
     return out
+
+
+def limb_circumference(tm, centre, direction, p):
+    """Circumference of the closed section outline around `centre` in the plane perpendicular to `direction`."""
+    import trimesh
+    from shapely.geometry import Point
+
+    d = np.asarray(direction, float) / np.linalg.norm(direction)
+    sec = tm.section(plane_origin=centre, plane_normal=d)
+    if sec is None:
+        return {"value_m": None, "reason": "no surface in the perpendicular plane"}
+    try:
+        path2d, _ = sec.to_2D(to_2D=trimesh.geometry.plane_transform(centre, d))
+    except Exception:  # noqa: BLE001 - degenerate section
+        return {"value_m": None, "reason": "degenerate perpendicular section"}
+    polys = [q for q in path2d.polygons_closed if q is not None and q.is_valid and q.area > 0]
+    inside = [q for q in polys if q.contains(Point(0.0, 0.0))]
+    if not inside:
+        return {"value_m": None, "reason": "no closed outline around the limb centre (hole or merged limb)"}
+    q = min(inside, key=lambda q: q.area)  # the limb itself, not a larger outline that also encloses it
+    return {"value_m": smoothed_perimeter(q.exterior.coords, p.contour_sigma_m, p.contour_step_m),
+            "raw_outline_m": float(q.exterior.length), "convex_hull_m": float(q.convex_hull.exterior.length)}
 
 
 def torso_circumference_at(mesh: o3d.geometry.TriangleMesh, z: float, p: BodyParams | None = None) -> dict:

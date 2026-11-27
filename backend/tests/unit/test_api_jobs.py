@@ -199,3 +199,28 @@ def test_running_job_cannot_be_deleted(tmp_path):
     jobs._update(job["id"], status="running")
     r = c.delete(f"/api/jobs/{job['id']}")
     assert r.status_code == 409 and "still being processed" in r.json()["detail"]
+
+
+def test_permanent_upload_delete_removes_its_meshes(tmp_path):
+    c = _client(tmp_path)
+    uid = _finalized_upload(c, tmp_path, {"a.mov": _video(tmp_path / "v.mov")})
+    other = _finalized_upload(c, tmp_path, {"b.mov": _video(tmp_path / "w.mov")})
+    job = c.post(f"/api/uploads/{uid}/process").json()
+    kept = c.post(f"/api/uploads/{other}/process").json()
+    session = tmp_path / "sessions" / job["session_id"]
+    assert session.is_dir()
+    assert c.delete(f"/api/uploads/{uid}", params={"permanently": "true"}).status_code == 204
+    assert not (tmp_path / "uploads" / uid).exists() and not session.exists()
+    assert c.get(f"/api/jobs/{job['id']}").status_code == 404
+    assert [j["id"] for j in c.get("/api/jobs").json()] == [kept["id"]]  # other recordings untouched
+    assert c.get(f"/api/uploads/{other}").json()["status"] == "complete"
+
+
+def test_upload_with_running_mesh_cannot_be_deleted(tmp_path):
+    c = _client(tmp_path)
+    uid = _finalized_upload(c, tmp_path, {"a.mov": _video(tmp_path / "v.mov")})
+    job = c.post(f"/api/uploads/{uid}/process").json()
+    c.app.state.jobs._update(job["id"], status="running")
+    r = c.delete(f"/api/uploads/{uid}", params={"permanently": "true"})
+    assert r.status_code == 409 and "still being made" in r.json()["detail"]
+    assert (tmp_path / "uploads" / uid / "export" / "a.mov").is_file()

@@ -182,10 +182,13 @@ def _body_row(m: dict, k: str, mesh, body: dict, base_status: str, base_why: str
                                                             "convex_hull_mm": round(c["convex_hull_m"] * 1000, 1)})
     key = next((v for t, v in BODY_NAMES.items() if t in name), None)
     if key is None and "thigh" in name:
-        vals = [x for x in body["measurements"] if x["name"].startswith("thigh_circumference_side") and x["value"]]
-        if vals:  # left/right are not assigned in the mesh: compare with the mean of both thighs
+        side = "left" if "left" in name else "right" if "right" in name else None
+        vals = [x for x in body["measurements"] if x["name"].startswith("thigh_circumference_") and x["value"]
+                and (side is None or x["name"].endswith(side))]
+        if vals:  # the named side if the tape says left/right, else the mean of both thighs
             v = float(np.mean([x["value"] for x in vals]))
-            return _row(m, k, v * 1000, "unreliable", "mean of both thighs (left/right not assigned); " + why,
+            how = f"{side} thigh" if side else "mean of both thighs (tape side not given)"
+            return _row(m, k, v * 1000, "unreliable", how + "; " + why,
                         {"method": "landmark thigh level"})
     if key is None:
         return _row(m, k, None, "unavailable", "no body definition for this name; give the tape level to compare "

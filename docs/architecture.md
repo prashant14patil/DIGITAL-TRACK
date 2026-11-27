@@ -67,9 +67,30 @@ recording from the same rig. Not wired into the web job runner yet (a parallel t
 | Cauchy loss absorbed loop drift by breaking the chain at one weak view (22 deg jump) | Huber; outliers removed after the solve, never disconnecting a view |
 | side views: texture is mostly the swinging arm -> yaw scatter ~+-5 deg | views with fast turns or contradicted poses are not fused; free-space vote with 5 cm margin |
 | only subject pixels are fused, so moved arms/static strays leave ghosts | two-pass TSDF with free-space violation culling (removes geometry only; nothing filled or moved) |
+| ARKit depth bleeds: the depth mask leaked onto the carpet around the feet and had a ~1 cm halo | depth mask sharpened with the RGB video vs the empty scene (`rgbd/rgbmask.py`): floor-colour veto below 25 cm, wall-match veto above 10 cm; only removes pixels (16 % on the first recording). Effect: 1 mesh component (was 4), floor residue trimmed after fusion 5k vertices (was 22k), split-half P95 4.2 mm (was 4.8), legs separated lower down; open inner-thigh surfaces now show as holes instead of a false bridge |
 | arms hung against the torso in some views | the largest closed contour at waist/hip height includes the arms: perimeters are NOT anatomical |
 
-Outputs: `fused_mesh.ply/.obj/.glb` (metres, floor z = 0, +z up; GLB/OBJ carry display-only vertex colours),
+Mesh finishing (2026-11-27):
+* `reconstruction/mesh_qc.py`: `inspect_mesh` counts components, isolated vertices, degenerate / duplicated /
+  self-intersecting triangles, non-manifold edges and vertices, holes, spikes; `repair_mesh` removes only faulty
+  triangles and loose pieces (< 1 %), never moves a vertex or fills a hole. Applied to the measuring mesh
+  (first real scan: 104 degenerate, 14 non-manifold vertices, 13 self-intersections -> 0; no floating pieces or spikes).
+* `reconstruction/refine.py`: refined mesh = screened Poisson (depth 10) fitted to the measuring mesh, fill limited
+  to 1 cm from data, gap-filled vertices flagged `estimated`, topology repaired. Gate: one component, manifold, no
+  self-intersections, deviation RMS <= 2 mm / P95 <= 4 mm on the measured part, <= 15 % estimated, >= 95 % of the
+  measured surface covered, and every measurement reproduced within max(5 mm, 0.5 %). `accepted` = measurement-
+  eligible; otherwise `flagged`. Reported numbers always come from the measuring mesh. Depth 9 / 3 cm fill was
+  rejected by the gate (domed unseen head top +24 mm; bridged the inner thighs).
+* Web: the result page shows the refined mesh by default (satin, shadows, pale = estimated) with a toggle to the raw
+  measuring mesh; the avatar uses the same refined mesh.
+
+Recording check (quickcheck-0.2, `validation/capture_checks.py`): with the empty scene selected, the "Check
+recording" button also reports resolution (mm per depth pixel), body in frame, thighs apart, arms away from the body,
+arm stillness and turn duration, from ~40 sampled frames in about a second. On the first real recording it flags
+exactly the causes found in the mesh: 10.3 mm/px at 2.2 m, thighs together, arms against the body, arms moving
+(16-21 cm SD), 112 s turn.
+
+Outputs: `refined_mesh.ply/.glb` + `refined_quality.json` (gate), `fused_mesh.ply/.obj/.glb` (metres, floor z = 0, +z up; GLB/OBJ carry display-only vertex colours),
 `fused_points.ply`, `poses.json`, `quality_report.json`, `report.html` with previews, `run_log.json`. The report
 includes a split-half check (interleaved halves fused separately). All measurements are `unreliable` until the
 validation stages in CLAUDE.md are done on this rig.

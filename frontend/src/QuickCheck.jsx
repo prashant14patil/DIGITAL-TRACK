@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "./api.js";
 
 const ZIP = /\.zip$/i;
@@ -9,15 +9,27 @@ export default function QuickCheck({ upload }) {
   const [res, setRes] = useState(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const [bg, setBg] = useState("");
+  const [others, setOthers] = useState([]);
+  useEffect(() => {
+    api.list().then((l) => setOthers(l.filter((u) => u.id !== upload.id && u.status === "complete"))).catch(() => {});
+  }, [upload.id]);
   if (upload.status !== "complete" || zips.length !== 1) return null;
 
   const run = async () => {
     setBusy(true); setErr(""); setRes(null);
-    try { setRes(await api.quickcheck(upload.id)); } catch (e) { setErr(e.message); } finally { setBusy(false); }
+    try { setRes(await api.quickcheck(upload.id, bg)); } catch (e) { setErr(e.message); } finally { setBusy(false); }
   };
 
   return (
     <div className="quickcheck">
+      <label className="field">
+        <span className="lbl">Empty-scene recording for the check<small> · needed for distance, legs-apart and arm checks</small></span>
+        <select value={bg} onChange={(e) => setBg(e.target.value)} disabled={busy}>
+          <option value="">none</option>
+          {others.map((u) => <option key={u.id} value={u.id}>{u.label} · {u.created_utc.replace("T", " ").replace("Z", "")}</option>)}
+        </select>
+      </label>
       <div className="action-row">
         <button onClick={run} disabled={busy}>{busy ? "Checking… (about 15 s)" : "Check recording"}</button>
         <span className="muted">Fast check (no mesh): pauses, iPad still, floor visible, full turn completed. Run it

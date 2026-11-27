@@ -409,3 +409,9 @@ dd { margin: 0; font-variant-numeric: tabular-nums; }
 
 .avatar-est-note { position: absolute; right: 14px; top: 12px; font-size: 12px; color: var(--muted);
   background: color-mix(in srgb, var(--bg, #fff) 70%, transparent); padding: 2px 8px; border-radius: 6px; }
+
+.seg-toggle { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin: 6px 0 8px; font-size: 13px; }
+.seg-toggle button { border: 1px solid var(--line, #d0d5dc); background: transparent; border-radius: 8px; padding: 4px 10px; cursor: pointer; }
+.seg-toggle button.on { background: var(--accent-soft, #e6eefc); border-color: var(--accent, #2457c5); }
+.ok-text { color: var(--ok, #1a7f4b); }
+.viewer canvas { display: block; }

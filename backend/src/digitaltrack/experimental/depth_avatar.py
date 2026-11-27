@@ -67,7 +67,20 @@ def prepare_depth_avatar(run_dir: str | Path) -> dict:
     t, info = display_transform(np.array(log["floor_from_camera"]), v)
     disp = o3d.geometry.TriangleMesh(mesh)
     disp.transform(t)  # rigid (rotation about z + horizontal shift): floor stays at z = 0
-    surf, estimated, surface_report = build_display_surface(disp)
+    refined_p = run / "refined_mesh.ply"
+    if refined_p.is_file():  # the pipeline's gated refined mesh: same rigid transform, estimated = > 5 mm from data
+        from .display_mesh import _distances
+
+        surf = o3d.io.read_triangle_mesh(str(refined_p))
+        surf.transform(t)
+        surf.compute_vertex_normals()
+        estimated = _distances(disp, np.asarray(surf.vertices)) > 0.005
+        rq = run / "refined_quality.json"
+        surface_report = {"source": "refined_mesh.ply (pipeline, gated)",
+                          "gate": json.loads(rq.read_text(encoding="utf-8")).get("status") if rq.is_file() else None,
+                          "estimated_vertex_fraction": float(estimated.mean())}
+    else:
+        surf, estimated, surface_report = build_display_surface(disp)
     if surf is not None:
         disp, cleanup = surf, {"used": "closed display surface", **surface_report}
     else:

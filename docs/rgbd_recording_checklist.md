@@ -61,7 +61,7 @@ detectable pauses, and some had the floor seen as a wall (iPad tilted or held in
 - [ ] **24 stops of about 15 deg** each (a full turn of 360 deg). Turn with small shuffles of the feet and keep the
       upper body and arms frozen. Never turn in steps larger than about 20 deg.
 - [ ] **Hold perfectly still for 3 s at each stop** (count "one-thousand-one ... three").
-- [ ] Finish facing the iPad exactly as you started, and hold still there for 3 s too (this closes the loop).
+- [ ] **Start facing the iPad** (left and right limbs are named from this), and finish facing the iPad exactly as you started, and hold still there for 3 s too (this closes the loop).
 - [ ] Someone else can call out "turn" / "hold"; they stay out of the frame.
 - [ ] Record **3 repeat scans**, stepping off and back on the marks between them.
 
@@ -74,6 +74,11 @@ clothing). For each: measure **3 times**, write all readings in mm, and the **he
 - [ ] Thigh — horizontal, about 3 cm below the crotch, one leg; note its height and which leg.
 Enter these on the upload page (name, readings, tape height). The comparison uses the tape height when given
 (torso only, arms excluded at that height) and the landmark definitions otherwise.
+
+**Before leaving the room**: upload the person clip and the empty-scene clip, then press **Check recording** with the
+empty scene selected (seconds, no mesh). Besides pauses / floor / full turn it now checks what decides whether the
+body can be MEASURED: distance (mm per depth pixel), whole body in the picture, thighs apart, arms clear of the body,
+arms held still, and turn duration. Re-record while you are still there if any of these warns.
 
 **After uploading**, check the result page: status must be `pass` or `warn`, every view placed, loop closure within
 the limits. If it fails, note which check failed and change one thing at a time.
